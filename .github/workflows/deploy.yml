@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Build & Deploy
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -15,8 +15,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  # ─────────────────────────────────────────
+  # Web: Build and deploy to GitHub Pages
+  # ─────────────────────────────────────────
+  deploy-web:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,16 +31,118 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # ─────────────────────────────────────────
+  # Android: Build debug APK via Capacitor
+  # ─────────────────────────────────────────
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - run: npm ci
+
+      # Build with relative paths for native
+      - run: npx cross-env BUILD_TARGET=native npx tsc -b && npx cross-env BUILD_TARGET=native npx vite build
+
+      # Initialize Capacitor Android project
+      - name: Add Capacitor Android platform
+        run: npx cap add android
+
+      - name: Sync web assets to Android
+        run: npx cap sync android
+
+      # Build debug APK
+      - name: Build debug APK
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleDebug
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlantis-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+  # ─────────────────────────────────────────
+  # macOS: Build DMG via Electron
+  # ─────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Build with relative paths for native
+      - run: npx cross-env BUILD_TARGET=native npx tsc -b && npx cross-env BUILD_TARGET=native npx vite build
+
+      - name: Build Electron app for macOS
+        run: npx electron-builder --mac --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlantis-macos
+          path: |
+            electron-dist/*.dmg
+            electron-dist/*.zip
+          retention-days: 30
+
+  # ─────────────────────────────────────────
+  # Windows: Build installer via Electron
+  # ─────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Build with relative paths for native
+      - run: npx cross-env BUILD_TARGET=native npx tsc -b && npx cross-env BUILD_TARGET=native npx vite build
+
+      - name: Build Electron app for Windows
+        run: npx electron-builder --win --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlantis-windows
+          path: |
+            electron-dist/*.exe
+            electron-dist/*.msi
+          retention-days: 30
