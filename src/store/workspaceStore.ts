@@ -33,6 +33,7 @@ const createEmptyCanvas = (name: string, folderId?: string): CanvasData => {
     cards: {},
     connections: {},
     structures: {},
+    groups: {},
     viewport: { offset: { x: 0, y: 0 }, zoom: 1 },
     backgroundPattern: 'dots',
     backgroundColor: '#f5f0e8',

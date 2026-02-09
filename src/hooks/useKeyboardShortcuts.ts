@@ -12,6 +12,7 @@ export function useKeyboardShortcuts() {
     setToolMode,
     deselectAll,
     toggleCollapse,
+    groupSelectedCards,
   } = useCanvasStore();
 
   useEffect(() => {
@@ -98,6 +99,14 @@ export function useKeyboardShortcuts() {
           setToolMode('paint-select');
           break;
         }
+        case 'g': {
+          if (!e.ctrlKey && !e.metaKey) {
+            if (selectedCardIds.size >= 2) {
+              groupSelectedCards();
+            }
+          }
+          break;
+        }
       }
     };
 
@@ -113,5 +122,6 @@ export function useKeyboardShortcuts() {
     setToolMode,
     deselectAll,
     toggleCollapse,
+    groupSelectedCards,
   ]);
 }

@@ -3,6 +3,8 @@ import { nanoid } from 'nanoid';
 import type {
   CardData,
   ConnectionData,
+  ConnectionEndpointType,
+  GroupData,
   StructureData,
   CanvasViewport,
   Point,
@@ -20,16 +22,19 @@ interface CanvasState {
   cards: Record<string, CardData>;
   connections: Record<string, ConnectionData>;
   structures: Record<string, StructureData>;
+  groups: Record<string, GroupData>;
   viewport: CanvasViewport;
   backgroundPattern: 'dots' | 'grid' | 'noise' | 'none';
   backgroundColor: string;
 
   // Interaction state
   selectedCardIds: Set<string>;
+  selectedGroupIds: Set<string>;
   selectedConnectionIds: Set<string>;
   activeCardId: string | null;
   toolMode: ToolMode;
   connectingFromId: string | null;
+  connectingFromType: ConnectionEndpointType;
   isDragging: boolean;
   paintTrail: Point[];
 
@@ -47,18 +52,30 @@ interface CanvasState {
 
   // Actions - Selection
   selectCard: (id: string, multi?: boolean) => void;
+  selectGroup: (id: string, multi?: boolean) => void;
   deselectAll: () => void;
   selectCards: (ids: string[]) => void;
   addToPaintTrail: (point: Point) => void;
   finishPaintSelection: () => void;
 
-  // Actions - Connections
-  addConnection: (sourceId: string, targetId: string, direction?: ConnectionDirection) => string;
+  // Actions - Connections (now support card or group endpoints)
+  addConnection: (sourceId: string, targetId: string, direction?: ConnectionDirection, sourceType?: ConnectionEndpointType, targetType?: ConnectionEndpointType) => string;
   updateConnection: (id: string, updates: Partial<ConnectionData>) => void;
   removeConnection: (id: string) => void;
-  startConnecting: (fromId: string) => void;
-  finishConnecting: (toId: string) => void;
+  startConnecting: (fromId: string, fromType?: ConnectionEndpointType) => void;
+  finishConnecting: (toId: string, toType?: ConnectionEndpointType) => void;
   cancelConnecting: () => void;
+
+  // Actions - Groups
+  createGroup: (cardIds: string[], label?: string) => string;
+  updateGroup: (id: string, updates: Partial<GroupData>) => void;
+  removeGroup: (id: string) => void;
+  addCardsToGroup: (groupId: string, cardIds: string[]) => void;
+  removeCardFromGroup: (groupId: string, cardId: string) => void;
+  moveGroup: (id: string, position: Point) => void;
+  toggleGroupCollapse: (id: string) => void;
+  groupSelectedCards: (label?: string) => string;
+  recomputeGroupBounds: (groupId: string) => void;
 
   // Actions - Structures (XMind)
   createStructure: (rootId: string, type: StructureType, direction?: LayoutDirection) => string;
@@ -90,6 +107,7 @@ interface CanvasState {
     cards: Record<string, CardData>;
     connections: Record<string, ConnectionData>;
     structures: Record<string, StructureData>;
+    groups: Record<string, GroupData>;
     canvasId: string;
     canvasName: string;
     canvasTags: string[];
@@ -105,14 +123,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   cards: {},
   connections: {},
   structures: {},
+  groups: {},
   viewport: { offset: { x: 0, y: 0 }, zoom: 1 },
   backgroundPattern: 'dots',
   backgroundColor: '#f5f0e8',
   selectedCardIds: new Set(),
+  selectedGroupIds: new Set(),
   selectedConnectionIds: new Set(),
   activeCardId: null,
   toolMode: 'select',
   connectingFromId: null,
+  connectingFromType: 'card' as ConnectionEndpointType,
   isDragging: false,
   paintTrail: [],
   canvasId: nanoid(),
@@ -179,6 +200,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         get().detachFromStructure(id);
       }
 
+      // Remove from group if part of one
+      const newGroups = { ...state.groups };
+      if (card.groupId && newGroups[card.groupId]) {
+        newGroups[card.groupId] = {
+          ...newGroups[card.groupId],
+          cardIds: newGroups[card.groupId].cardIds.filter((cid) => cid !== id),
+        };
+        // Remove group if empty
+        if (newGroups[card.groupId].cardIds.length === 0) {
+          delete newGroups[card.groupId];
+        }
+      }
+
       // Remove connections involving this card
       const newConnections = { ...state.connections };
       Object.values(newConnections).forEach((conn) => {
@@ -194,6 +228,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       return {
         cards: newCards,
         connections: newConnections,
+        groups: newGroups,
         selectedCardIds: newSelected,
         activeCardId: state.activeCardId === id ? null : state.activeCardId,
       };
@@ -245,8 +280,20 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
   },
 
+  selectGroup: (id, multi = false) => {
+    set((state) => {
+      if (multi) {
+        const newSet = new Set(state.selectedGroupIds);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        return { selectedGroupIds: newSet };
+      }
+      return { selectedGroupIds: new Set([id]), selectedCardIds: new Set(), activeCardId: null };
+    });
+  },
+
   deselectAll: () => {
-    set({ selectedCardIds: new Set(), selectedConnectionIds: new Set(), activeCardId: null });
+    set({ selectedCardIds: new Set(), selectedGroupIds: new Set(), selectedConnectionIds: new Set(), activeCardId: null });
   },
 
   selectCards: (ids) => {
@@ -284,12 +331,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   // Connections
-  addConnection: (sourceId, targetId, direction = 'none') => {
+  addConnection: (sourceId, targetId, direction = 'none', sourceType = 'card', targetType = 'card') => {
     const id = nanoid();
     const conn: ConnectionData = {
       id,
       sourceId,
       targetId,
+      sourceType,
+      targetType,
       label: '',
       direction,
     };
@@ -317,20 +366,209 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
   },
 
-  startConnecting: (fromId) => {
-    set({ connectingFromId: fromId, toolMode: 'connect' });
+  startConnecting: (fromId, fromType = 'card') => {
+    set({ connectingFromId: fromId, connectingFromType: fromType, toolMode: 'connect' });
   },
 
-  finishConnecting: (toId) => {
-    const { connectingFromId } = get();
+  finishConnecting: (toId, toType = 'card') => {
+    const { connectingFromId, connectingFromType } = get();
     if (connectingFromId && connectingFromId !== toId) {
-      get().addConnection(connectingFromId, toId, 'forward');
+      get().addConnection(connectingFromId, toId, 'forward', connectingFromType, toType);
     }
-    set({ connectingFromId: null, toolMode: 'select' });
+    set({ connectingFromId: null, connectingFromType: 'card', toolMode: 'select' });
   },
 
   cancelConnecting: () => {
-    set({ connectingFromId: null, toolMode: 'select' });
+    set({ connectingFromId: null, connectingFromType: 'card', toolMode: 'select' });
+  },
+
+  // Group actions
+  createGroup: (cardIds, label = 'Group') => {
+    const id = nanoid();
+    const state = get();
+    // Compute bounding box of selected cards
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    cardIds.forEach((cid) => {
+      const card = state.cards[cid];
+      if (card) {
+        minX = Math.min(minX, card.position.x);
+        minY = Math.min(minY, card.position.y);
+        maxX = Math.max(maxX, card.position.x + card.size.width);
+        maxY = Math.max(maxY, card.position.y + card.size.height);
+      }
+    });
+    const padding = 24;
+    const group: GroupData = {
+      id,
+      label,
+      cardIds: [...cardIds],
+      position: { x: minX - padding, y: minY - padding - 28 },
+      size: { width: maxX - minX + padding * 2, height: maxY - minY + padding * 2 + 28 },
+      color: '#7c5cbf',
+      zIndex: state.getMaxZIndex() - 1,
+      collapsed: false,
+    };
+    // Mark cards as belonging to this group
+    const newCards = { ...state.cards };
+    cardIds.forEach((cid) => {
+      if (newCards[cid]) {
+        newCards[cid] = { ...newCards[cid], groupId: id };
+      }
+    });
+    set({ groups: { ...state.groups, [id]: group }, cards: newCards });
+    return id;
+  },
+
+  updateGroup: (id, updates) => {
+    set((state) => {
+      const group = state.groups[id];
+      if (!group) return state;
+      return { groups: { ...state.groups, [id]: { ...group, ...updates } } };
+    });
+  },
+
+  removeGroup: (id) => {
+    set((state) => {
+      const group = state.groups[id];
+      if (!group) return state;
+      // Unmark cards
+      const newCards = { ...state.cards };
+      group.cardIds.forEach((cid) => {
+        if (newCards[cid]) {
+          newCards[cid] = { ...newCards[cid], groupId: undefined };
+        }
+      });
+      // Remove connections that involve this group
+      const newConnections = { ...state.connections };
+      Object.values(newConnections).forEach((conn) => {
+        if (
+          (conn.sourceId === id && conn.sourceType === 'group') ||
+          (conn.targetId === id && conn.targetType === 'group')
+        ) {
+          delete newConnections[conn.id];
+        }
+      });
+      const newGroups = { ...state.groups };
+      delete newGroups[id];
+      const newSelectedGroups = new Set(state.selectedGroupIds);
+      newSelectedGroups.delete(id);
+      return { groups: newGroups, cards: newCards, connections: newConnections, selectedGroupIds: newSelectedGroups };
+    });
+  },
+
+  addCardsToGroup: (groupId, cardIds) => {
+    set((state) => {
+      const group = state.groups[groupId];
+      if (!group) return state;
+      const newCards = { ...state.cards };
+      const newCardIds = [...group.cardIds];
+      cardIds.forEach((cid) => {
+        if (newCards[cid] && !newCardIds.includes(cid)) {
+          // Remove from old group if any
+          const old = newCards[cid].groupId;
+          if (old && state.groups[old]) {
+            const oldGroup = state.groups[old];
+            state.groups[old] = { ...oldGroup, cardIds: oldGroup.cardIds.filter((i) => i !== cid) };
+          }
+          newCards[cid] = { ...newCards[cid], groupId: groupId };
+          newCardIds.push(cid);
+        }
+      });
+      return {
+        cards: newCards,
+        groups: { ...state.groups, [groupId]: { ...group, cardIds: newCardIds } },
+      };
+    });
+    get().recomputeGroupBounds(groupId);
+  },
+
+  removeCardFromGroup: (groupId, cardId) => {
+    set((state) => {
+      const group = state.groups[groupId];
+      if (!group) return state;
+      const newCards = { ...state.cards };
+      if (newCards[cardId]) {
+        newCards[cardId] = { ...newCards[cardId], groupId: undefined };
+      }
+      const newCardIds = group.cardIds.filter((id) => id !== cardId);
+      const newGroups = { ...state.groups };
+      if (newCardIds.length === 0) {
+        delete newGroups[groupId];
+      } else {
+        newGroups[groupId] = { ...group, cardIds: newCardIds };
+      }
+      return { cards: newCards, groups: newGroups };
+    });
+  },
+
+  moveGroup: (id, position) => {
+    set((state) => {
+      const group = state.groups[id];
+      if (!group) return state;
+      const dx = position.x - group.position.x;
+      const dy = position.y - group.position.y;
+      // Move all cards in the group too
+      const newCards = { ...state.cards };
+      group.cardIds.forEach((cid) => {
+        const card = newCards[cid];
+        if (card) {
+          newCards[cid] = {
+            ...card,
+            position: { x: card.position.x + dx, y: card.position.y + dy },
+          };
+        }
+      });
+      return {
+        groups: { ...state.groups, [id]: { ...group, position } },
+        cards: newCards,
+      };
+    });
+  },
+
+  toggleGroupCollapse: (id) => {
+    set((state) => {
+      const group = state.groups[id];
+      if (!group) return state;
+      return {
+        groups: { ...state.groups, [id]: { ...group, collapsed: !group.collapsed } },
+      };
+    });
+  },
+
+  groupSelectedCards: (label = 'Group') => {
+    const { selectedCardIds } = get();
+    const ids = Array.from(selectedCardIds);
+    if (ids.length < 2) return '';
+    return get().createGroup(ids, label);
+  },
+
+  recomputeGroupBounds: (groupId) => {
+    set((state) => {
+      const group = state.groups[groupId];
+      if (!group) return state;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      group.cardIds.forEach((cid) => {
+        const card = state.cards[cid];
+        if (card) {
+          minX = Math.min(minX, card.position.x);
+          minY = Math.min(minY, card.position.y);
+          maxX = Math.max(maxX, card.position.x + card.size.width);
+          maxY = Math.max(maxY, card.position.y + card.size.height);
+        }
+      });
+      if (minX === Infinity) return state;
+      const padding = 24;
+      return {
+        groups: {
+          ...state.groups,
+          [groupId]: {
+            ...group,
+            position: { x: minX - padding, y: minY - padding - 28 },
+            size: { width: maxX - minX + padding * 2, height: maxY - minY + padding * 2 + 28 },
+          },
+        },
+      };
+    });
   },
 
   // Structure (XMind) actions
@@ -401,6 +639,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       id: connId,
       sourceId: parentId,
       targetId: childId,
+      sourceType: 'card',
+      targetType: 'card',
       label: '',
       direction: 'forward',
       styleOverride: 'elbow',
@@ -508,6 +748,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       id: connId,
       sourceId: parentId,
       targetId: cardId,
+      sourceType: 'card',
+      targetType: 'card',
       label: '',
       direction: 'forward',
       styleOverride: 'elbow',
@@ -725,12 +967,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       cards: data.cards,
       connections: data.connections,
       structures: data.structures,
+      groups: data.groups || {},
       canvasId: data.canvasId,
       canvasName: data.canvasName,
       canvasTags: data.canvasTags,
       backgroundPattern: data.backgroundPattern,
       backgroundColor: data.backgroundColor,
       selectedCardIds: new Set(),
+      selectedGroupIds: new Set(),
       selectedConnectionIds: new Set(),
       activeCardId: null,
     });
@@ -741,7 +985,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       cards: {},
       connections: {},
       structures: {},
+      groups: {},
       selectedCardIds: new Set(),
+      selectedGroupIds: new Set(),
       selectedConnectionIds: new Set(),
       activeCardId: null,
       canvasId: nanoid(),

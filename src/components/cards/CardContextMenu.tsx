@@ -23,6 +23,8 @@ export const CardContextMenu: React.FC<Props> = ({ card, position, onClose }) =>
     addChildToStructure,
     startConnecting,
     toggleCollapse,
+    removeCardFromGroup,
+    groups,
   } = useCanvasStore();
 
   const { currentTheme } = useThemeStore();
@@ -183,6 +185,25 @@ export const CardContextMenu: React.FC<Props> = ({ card, position, onClose }) =>
       >
         Connect to...
       </button>
+
+      {/* Group actions */}
+      {card.groupId && groups[card.groupId] && (
+        <button
+          style={itemStyle}
+          onClick={() => {
+            removeCardFromGroup(card.groupId!, card.id);
+            onClose();
+          }}
+          onMouseEnter={(e) => {
+            (e.target as HTMLElement).style.background = currentTheme.colors.surfaceHover;
+          }}
+          onMouseLeave={(e) => {
+            (e.target as HTMLElement).style.background = 'transparent';
+          }}
+        >
+          Remove from &quot;{groups[card.groupId].label}&quot;
+        </button>
+      )}
 
       <div style={{ height: 1, background: currentTheme.colors.border + '30', margin: '4px 0' }} />
 

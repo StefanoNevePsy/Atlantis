@@ -12,7 +12,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<View>('dashboard');
   const [activeCanvasId, setActiveCanvasId] = useState<string | null>(null);
 
-  const { loadCanvas, cards, connections, structures, canvasName, canvasTags, backgroundPattern, backgroundColor } = useCanvasStore();
+  const { loadCanvas, cards, connections, structures, groups, canvasName, canvasTags, backgroundPattern, backgroundColor } = useCanvasStore();
   const { canvases, saveCanvasState } = useWorkspaceStore();
   const { currentTheme } = useThemeStore();
 
@@ -24,6 +24,7 @@ const App: React.FC = () => {
           cards: canvas.cards,
           connections: canvas.connections,
           structures: canvas.structures,
+          groups: canvas.groups || {},
           canvasId: canvas.id,
           canvasName: canvas.name,
           canvasTags: canvas.tags,
@@ -44,6 +45,7 @@ const App: React.FC = () => {
         cards,
         connections,
         structures,
+        groups,
         name: canvasName,
         tags: canvasTags,
         backgroundPattern,
@@ -51,7 +53,7 @@ const App: React.FC = () => {
       });
     }
     setView('dashboard');
-  }, [activeCanvasId, cards, connections, structures, canvasName, canvasTags, backgroundPattern, backgroundColor, saveCanvasState]);
+  }, [activeCanvasId, cards, connections, structures, groups, canvasName, canvasTags, backgroundPattern, backgroundColor, saveCanvasState]);
 
   return (
     <div

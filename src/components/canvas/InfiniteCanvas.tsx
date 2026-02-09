@@ -4,6 +4,7 @@ import { useThemeStore } from '../../store/themeStore';
 import { useCanvasInteraction } from '../../hooks/useCanvasInteraction';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { Card } from '../cards/Card';
+import { Group } from '../groups/Group';
 import { ConnectionLayer } from '../connections/ConnectionLayer';
 import { PaintTrail } from './PaintTrail';
 import { BackgroundPattern } from './BackgroundPattern';
@@ -19,10 +20,12 @@ export const InfiniteCanvas: React.FC = () => {
 
   const {
     cards,
+    groups,
     viewport,
     backgroundPattern,
     backgroundColor,
     selectedCardIds,
+    selectedGroupIds,
     paintTrail,
     toolMode,
     connectingFromId,
@@ -139,22 +142,43 @@ export const InfiniteCanvas: React.FC = () => {
           {/* Structure overlays (boundaries) rendered behind cards */}
           <StructureOverlay />
 
-          {/* Connection lines */}
-          <ConnectionLayer />
-
-          {/* Cards */}
-          {Object.values(cards).map((card) => (
-            <Card
-              key={card.id}
-              card={card}
-              isSelected={selectedCardIds.has(card.id)}
+          {/* Groups rendered behind cards */}
+          {Object.values(groups).map((group) => (
+            <Group
+              key={group.id}
+              group={group}
+              isSelected={selectedGroupIds.has(group.id)}
               onConnect={
                 connectingFromId
-                  ? () => finishConnecting(card.id)
+                  ? () => finishConnecting(group.id, 'group')
                   : undefined
               }
             />
           ))}
+
+          {/* Connection lines */}
+          <ConnectionLayer />
+
+          {/* Cards */}
+          {Object.values(cards).map((card) => {
+            // Hide cards in collapsed groups
+            if (card.groupId) {
+              const group = groups[card.groupId];
+              if (group?.collapsed) return null;
+            }
+            return (
+              <Card
+                key={card.id}
+                card={card}
+                isSelected={selectedCardIds.has(card.id)}
+                onConnect={
+                  connectingFromId
+                    ? () => finishConnecting(card.id, 'card')
+                    : undefined
+                }
+              />
+            );
+          })}
         </div>
 
         {/* Paint trail overlay */}

@@ -16,6 +16,8 @@ export const CanvasToolbar: React.FC = () => {
     setBackgroundPattern,
     createStructure,
     updateStructureType,
+    selectedCardIds,
+    groupSelectedCards,
   } = useCanvasStore();
 
   const { currentTheme, setTheme, getAllThemes } = useThemeStore();
@@ -118,6 +120,23 @@ export const CanvasToolbar: React.FC = () => {
           {tool.icon}
         </button>
       ))}
+
+      {/* Group selected button */}
+      <button
+        onClick={() => {
+          if (selectedCardIds.size >= 2) {
+            groupSelectedCards();
+          }
+        }}
+        style={{
+          ...buttonBase,
+          opacity: selectedCardIds.size >= 2 ? 1 : 0.35,
+          cursor: selectedCardIds.size >= 2 ? 'pointer' : 'default',
+        }}
+        title={selectedCardIds.size >= 2 ? `Group ${selectedCardIds.size} selected cards (G)` : 'Select 2+ cards to group'}
+      >
+        [ ]
+      </button>
 
       <div style={{ width: 1, height: 24, background: currentTheme.colors.border + '40', margin: '0 4px' }} />
 

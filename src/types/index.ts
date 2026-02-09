@@ -32,6 +32,8 @@ export interface CardData {
   contentType: ContentType;
   metadata: CardMetadata;
   zIndex: number;
+  // Group membership
+  groupId?: string;           // If part of a group
   // XMind layer properties
   structureId?: string;      // If part of a structure
   parentId?: string;          // Parent in tree hierarchy
@@ -40,15 +42,31 @@ export interface CardData {
   isRoot: boolean;
 }
 
+// Connection endpoints can be cards or groups
+export type ConnectionEndpointType = 'card' | 'group';
+
 export interface ConnectionData {
   id: string;
   sourceId: string;
   targetId: string;
+  sourceType: ConnectionEndpointType;
+  targetType: ConnectionEndpointType;
   label: string;
   direction: ConnectionDirection;
   // Rendering style determined by context
   styleOverride?: 'spline' | 'elbow' | 'straight';
   color?: string;
+}
+
+export interface GroupData {
+  id: string;
+  label: string;
+  cardIds: string[];
+  position: Point;
+  size: Size;
+  color: string;
+  zIndex: number;
+  collapsed: boolean;
 }
 
 export interface StructureData {
@@ -89,6 +107,7 @@ export interface CanvasData {
   cards: Record<string, CardData>;
   connections: Record<string, ConnectionData>;
   structures: Record<string, StructureData>;
+  groups: Record<string, GroupData>;
   viewport: CanvasViewport;
   backgroundPattern: 'dots' | 'grid' | 'noise' | 'none';
   backgroundColor: string;
