@@ -246,6 +246,25 @@ function layoutFishbone(
   return positions;
 }
 
+// Shift all positions so root ends up at (rootX, rootY)
+function anchorToRoot(
+  positions: Map<string, Point>,
+  rootId: string,
+  rootX: number,
+  rootY: number
+): Map<string, Point> {
+  const rootPos = positions.get(rootId);
+  if (!rootPos) return positions;
+  const dx = rootX - rootPos.x;
+  const dy = rootY - rootPos.y;
+  if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return positions;
+  const shifted = new Map<string, Point>();
+  positions.forEach((pos, id) => {
+    shifted.set(id, { x: pos.x + dx, y: pos.y + dy });
+  });
+  return shifted;
+}
+
 // ===== Main layout function =====
 export function computeLayout(
   structure: StructureData,
@@ -258,10 +277,12 @@ export function computeLayout(
   const baseX = root?.position.x ?? 0;
   const baseY = root?.position.y ?? 0;
 
+  let positions: Map<string, Point>;
+
   switch (structure.type) {
     case 'mindmap': {
       if (structure.layoutDirection === 'radial') {
-        return layoutMindMapRadial(
+        positions = layoutMindMapRadial(
           tree,
           baseX + tree.width / 2,
           baseY + tree.height / 2,
@@ -269,26 +290,37 @@ export function computeLayout(
           Math.PI * 2,
           200
         );
+        break;
       }
       measureSubtreeHorizontal(tree);
-      return layoutMindMapHorizontal(tree, baseX, baseY);
+      positions = layoutMindMapHorizontal(tree, baseX, baseY);
+      break;
     }
     case 'org-chart': {
       measureSubtreeVertical(tree);
-      return layoutOrgChart(tree, baseX, baseY);
+      positions = layoutOrgChart(tree, baseX, baseY);
+      break;
     }
     case 'logic-chart': {
       measureSubtreeHorizontal(tree);
-      return layoutLogicChart(tree, baseX, baseY);
+      positions = layoutLogicChart(tree, baseX, baseY);
+      break;
     }
     case 'fishbone': {
-      return layoutFishbone(tree, baseX, baseY);
+      positions = layoutFishbone(tree, baseX, baseY);
+      break;
     }
     default: {
       measureSubtreeHorizontal(tree);
-      return layoutMindMapHorizontal(tree, baseX, baseY);
+      positions = layoutMindMapHorizontal(tree, baseX, baseY);
+      break;
     }
   }
+
+  // Anchor: ensure the root stays at its actual position
+  // The layout algorithm may shift the root to center it within its subtree,
+  // but we want children positioned relative to the root's real position.
+  return anchorToRoot(positions, structure.rootId, baseX, baseY);
 }
 
 // Compute boundary bounding box

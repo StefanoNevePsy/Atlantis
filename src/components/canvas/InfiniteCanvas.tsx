@@ -1,6 +1,7 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import { useCanvasStore } from '../../store/canvasStore';
 import { useThemeStore } from '../../store/themeStore';
+import { useSyncStore } from '../../store/syncStore';
 import { useCanvasInteraction } from '../../hooks/useCanvasInteraction';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { Card } from '../cards/Card';
@@ -12,6 +13,7 @@ import { StructureOverlay } from '../xmind/StructureOverlay';
 import { CanvasToolbar } from './CanvasToolbar';
 import { InspectorPanel } from '../inspector/InspectorPanel';
 import { screenToCanvas } from '../../utils/geometry';
+import { uploadToImgur, fileToBase64 } from '../../utils/imgur';
 
 const handleCanvasContextMenu = (e: React.MouseEvent) => {
   // Prevent default context menu on canvas background (supports S Pen button)
@@ -39,9 +41,82 @@ export const InfiniteCanvas: React.FC = () => {
     deselectAll,
     finishConnecting,
     cancelConnecting,
+    addCard,
+    updateCard,
   } = useCanvasStore();
 
   const { currentTheme } = useThemeStore();
+  const imgurClientId = useSyncStore((s) => s.imgurClientId);
+
+  // Helper: add image card, optionally upload to Imgur
+  const addImageCard = useCallback(
+    async (base64: string, pos: { x: number; y: number }) => {
+      const cardId = addCard(pos, 'image', base64);
+
+      // If Imgur is configured, upload in background and replace base64 with URL
+      if (imgurClientId) {
+        const result = await uploadToImgur(base64, imgurClientId);
+        if (result.success && result.url) {
+          updateCard(cardId, { content: result.url });
+        }
+      }
+    },
+    [addCard, updateCard, imgurClientId]
+  );
+
+  // Clipboard paste handler
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      // Don't intercept paste when editing text
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLTextAreaElement ||
+        active instanceof HTMLInputElement ||
+        (active as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!file) continue;
+
+          const base64 = await fileToBase64(file);
+
+          // Place at center of current view
+          const rect = canvasRef.current?.getBoundingClientRect();
+          const centerX = rect ? rect.width / 2 : 400;
+          const centerY = rect ? rect.height / 2 : 300;
+          const pos = screenToCanvas(centerX, centerY, viewport.offset, viewport.zoom);
+
+          await addImageCard(base64, pos);
+          return;
+        }
+      }
+
+      // Handle text paste as new card
+      const text = e.clipboardData?.getData('text/plain');
+      if (text && text.trim()) {
+        // Only create card from paste when nothing is focused (not editing)
+        e.preventDefault();
+        const rect = canvasRef.current?.getBoundingClientRect();
+        const centerX = rect ? rect.width / 2 : 400;
+        const centerY = rect ? rect.height / 2 : 300;
+        const pos = screenToCanvas(centerX, centerY, viewport.offset, viewport.zoom);
+
+        const isUrl = text.trim().startsWith('http://') || text.trim().startsWith('https://');
+        addCard(pos, isUrl ? 'url' : 'text', text.trim());
+      }
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [viewport, addCard, addImageCard]);
 
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent) => {
@@ -57,7 +132,7 @@ export const InfiniteCanvas: React.FC = () => {
   );
 
   const handleDrop = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault();
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -73,30 +148,25 @@ export const InfiniteCanvas: React.FC = () => {
       const files = Array.from(e.dataTransfer.files);
       const imageFile = files.find((f) => f.type.startsWith('image/'));
       if (imageFile) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          useCanvasStore
-            .getState()
-            .addCard(pos, 'image', reader.result as string);
-        };
-        reader.readAsDataURL(imageFile);
+        const base64 = await fileToBase64(imageFile);
+        await addImageCard(base64, pos);
         return;
       }
 
       // Handle URL drops
       const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
       if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-        useCanvasStore.getState().addCard(pos, 'url', url);
+        addCard(pos, 'url', url);
         return;
       }
 
       // Handle text drops
       const text = e.dataTransfer.getData('text/plain');
       if (text) {
-        useCanvasStore.getState().addCard(pos, 'text', text);
+        addCard(pos, 'text', text);
       }
     },
-    [viewport]
+    [viewport, addCard, addImageCard]
   );
 
   const transformStyle = {

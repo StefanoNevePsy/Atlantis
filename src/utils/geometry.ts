@@ -26,24 +26,38 @@ export function canvasToScreen(
   };
 }
 
-// Compute Bézier control points for a spline between two cards
-export function computeSplineControlPoints(
-  source: CardData,
-  target: CardData
+// Compute Bézier control points for a spline between two edge points
+// Control points extend outward from each rectangle face for smooth curves
+export function computeEdgeSplineControlPoints(
+  srcEdge: Point,
+  srcCenter: Point,
+  tgtEdge: Point,
+  tgtCenter: Point
 ): { cp1: Point; cp2: Point } {
-  const sx = source.position.x + source.size.width / 2;
-  const sy = source.position.y + source.size.height / 2;
-  const tx = target.position.x + target.size.width / 2;
-  const ty = target.position.y + target.size.height / 2;
+  // Direction from center to edge = outward normal
+  const srcDx = srcEdge.x - srcCenter.x;
+  const srcDy = srcEdge.y - srcCenter.y;
+  const srcDist = Math.sqrt(srcDx * srcDx + srcDy * srcDy) || 1;
 
-  const dx = tx - sx;
-  const dy = ty - sy;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  const tension = Math.min(dist * 0.4, 150);
+  const tgtDx = tgtEdge.x - tgtCenter.x;
+  const tgtDy = tgtEdge.y - tgtCenter.y;
+  const tgtDist = Math.sqrt(tgtDx * tgtDx + tgtDy * tgtDy) || 1;
+
+  // Tension proportional to distance between edge points
+  const edgeDx = tgtEdge.x - srcEdge.x;
+  const edgeDy = tgtEdge.y - srcEdge.y;
+  const edgeDist = Math.sqrt(edgeDx * edgeDx + edgeDy * edgeDy);
+  const tension = Math.min(edgeDist * 0.35, 180);
 
   return {
-    cp1: { x: sx + tension, y: sy },
-    cp2: { x: tx - tension, y: ty },
+    cp1: {
+      x: srcEdge.x + (srcDx / srcDist) * tension,
+      y: srcEdge.y + (srcDy / srcDist) * tension,
+    },
+    cp2: {
+      x: tgtEdge.x + (tgtDx / tgtDist) * tension,
+      y: tgtEdge.y + (tgtDy / tgtDist) * tension,
+    },
   };
 }
 
@@ -53,19 +67,28 @@ export function computeElbowPath(
   target: CardData,
   direction: 'horizontal' | 'vertical' = 'horizontal'
 ): string {
-  const sx = source.position.x + source.size.width;
-  const sy = source.position.y + source.size.height / 2;
-  const tx = target.position.x;
-  const ty = target.position.y + target.size.height / 2;
-
   if (direction === 'horizontal') {
+    // Determine which side the target is on
+    const srcCenterX = source.position.x + source.size.width / 2;
+    const tgtCenterX = target.position.x + target.size.width / 2;
+    const goingRight = tgtCenterX >= srcCenterX;
+
+    const sx = goingRight ? source.position.x + source.size.width : source.position.x;
+    const sy = source.position.y + source.size.height / 2;
+    const tx = goingRight ? target.position.x : target.position.x + target.size.width;
+    const ty = target.position.y + target.size.height / 2;
     const midX = (sx + tx) / 2;
     return `M ${sx} ${sy} L ${midX} ${sy} L ${midX} ${ty} L ${tx} ${ty}`;
   } else {
+    // Determine which side the target is on
+    const srcCenterY = source.position.y + source.size.height / 2;
+    const tgtCenterY = target.position.y + target.size.height / 2;
+    const goingDown = tgtCenterY >= srcCenterY;
+
     const bsx = source.position.x + source.size.width / 2;
-    const bsy = source.position.y + source.size.height;
+    const bsy = goingDown ? source.position.y + source.size.height : source.position.y;
     const btx = target.position.x + target.size.width / 2;
-    const bty = target.position.y;
+    const bty = goingDown ? target.position.y : target.position.y + target.size.height;
     const midY = (bsy + bty) / 2;
     return `M ${bsx} ${bsy} L ${bsx} ${midY} L ${btx} ${midY} L ${btx} ${bty}`;
   }

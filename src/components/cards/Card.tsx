@@ -12,18 +12,23 @@ interface Props {
   onConnect?: () => void;
 }
 
+type ResizeCorner = 'se' | 'sw' | 'ne' | 'nw' | null;
+
 export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isEditing, setIsEditing] = useState(!card.content);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPos, setContextMenuPos] = useState<Point>({ x: 0, y: 0 });
+  const [resizing, setResizing] = useState<ResizeCorner>(null);
   const dragStart = useRef<Point>({ x: 0, y: 0 });
   const cardStart = useRef<Point>({ x: 0, y: 0 });
+  const sizeStart = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
 
   const {
     selectCard,
     moveCard,
+    resizeCard,
     moveSelectedCards,
     startConnecting,
     toolMode,
@@ -58,6 +63,42 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
+      if (resizing) {
+        e.stopPropagation();
+        const dx = (e.clientX - dragStart.current.x) / viewport.zoom;
+        const dy = (e.clientY - dragStart.current.y) / viewport.zoom;
+
+        let newW = sizeStart.current.width;
+        let newH = sizeStart.current.height;
+        let newX = cardStart.current.x;
+        let newY = cardStart.current.y;
+
+        if (resizing === 'se') {
+          newW += dx;
+          newH += dy;
+        } else if (resizing === 'sw') {
+          newW -= dx;
+          newH += dy;
+          newX += dx;
+        } else if (resizing === 'ne') {
+          newW += dx;
+          newH -= dy;
+          newY += dy;
+        } else if (resizing === 'nw') {
+          newW -= dx;
+          newH -= dy;
+          newX += dx;
+          newY += dy;
+        }
+
+        newW = Math.max(80, newW);
+        newH = Math.max(30, newH);
+
+        resizeCard(card.id, { width: newW, height: newH });
+        moveCard(card.id, { x: newX, y: newY });
+        return;
+      }
+
       if (!isDragging) return;
       e.stopPropagation();
 
@@ -74,19 +115,34 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
         });
       }
     },
-    [isDragging, card.id, moveCard, moveSelectedCards, selectedCardIds, viewport.zoom]
+    [isDragging, resizing, card.id, moveCard, resizeCard, moveSelectedCards, selectedCardIds, viewport.zoom]
   );
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
+      if (resizing) {
+        e.stopPropagation();
+        setResizing(null);
+        return;
+      }
       if (!isDragging) return;
       e.stopPropagation();
       setIsDragging(false);
-
-      // Check if dropped on a structure node (hybrid integration)
-      // This is handled by drop zones in StructureOverlay
     },
-    [isDragging]
+    [isDragging, resizing]
+  );
+
+  const handleResizeStart = useCallback(
+    (corner: ResizeCorner, e: React.PointerEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setResizing(corner);
+      dragStart.current = { x: e.clientX, y: e.clientY };
+      cardStart.current = { ...card.position };
+      sizeStart.current = { ...card.size };
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    },
+    [card.position, card.size]
   );
 
   const handleDoubleClick = useCallback(
@@ -127,18 +183,19 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
       position: 'absolute',
       left: card.position.x,
       top: card.position.y,
-      minWidth: 120,
-      maxWidth: 400,
-      minHeight: 40,
+      width: card.size.width,
+      minHeight: card.size.height,
       padding: '10px 14px',
       cursor: isDragging ? 'grabbing' : 'grab',
       userSelect: 'none',
-      transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease',
+      transition: isDragging || resizing ? 'none' : 'transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease',
       zIndex: card.zIndex + (isDragging ? 1000 : 0),
       background: card.metadata.color || currentTheme.colors.cardBg,
       color: card.metadata.fontColor || currentTheme.colors.text,
       fontFamily: card.metadata.fontFamily || currentTheme.typography.fontFamily,
       fontSize: currentTheme.typography.fontSize.md,
+      boxSizing: 'border-box',
+      overflow: 'hidden',
     };
 
     const { cardStyle } = currentTheme.decorations;
@@ -192,6 +249,20 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
         return base;
     }
   };
+
+  const resizeHandleStyle = (cursor: string): React.CSSProperties => ({
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    background: isSelected ? currentTheme.colors.primary : 'transparent',
+    border: isSelected ? `2px solid ${currentTheme.colors.cardBg}` : 'none',
+    borderRadius: 2,
+    cursor,
+    zIndex: 10,
+    opacity: isSelected ? 0.7 : 0,
+    transition: 'opacity 0.15s',
+    touchAction: 'none',
+  });
 
   return (
     <>
@@ -257,7 +328,7 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
           />
         )}
 
-        {/* Connection handle - visible on selection or hover, always tappable on touch */}
+        {/* Connection handle - visible on selection */}
         <div
           onPointerDown={(e) => {
             e.stopPropagation();
@@ -284,6 +355,24 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
           onMouseLeave={(e) => {
             if (!isSelected) (e.target as HTMLElement).style.opacity = '0';
           }}
+        />
+
+        {/* Resize handles at corners */}
+        <div
+          style={{ ...resizeHandleStyle('nw-resize'), top: -4, left: -4 }}
+          onPointerDown={(e) => handleResizeStart('nw', e)}
+        />
+        <div
+          style={{ ...resizeHandleStyle('ne-resize'), top: -4, right: -4 }}
+          onPointerDown={(e) => handleResizeStart('ne', e)}
+        />
+        <div
+          style={{ ...resizeHandleStyle('sw-resize'), bottom: -4, left: -4 }}
+          onPointerDown={(e) => handleResizeStart('sw', e)}
+        />
+        <div
+          style={{ ...resizeHandleStyle('se-resize'), bottom: -4, right: -4 }}
+          onPointerDown={(e) => handleResizeStart('se', e)}
         />
       </div>
 

@@ -48,6 +48,7 @@ interface CanvasState {
   updateCard: (id: string, updates: Partial<CardData>) => void;
   removeCard: (id: string) => void;
   moveCard: (id: string, position: Point) => void;
+  resizeCard: (id: string, size: { width: number; height: number }) => void;
   moveSelectedCards: (delta: Point) => void;
 
   // Actions - Selection
@@ -242,6 +243,25 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       if (!card) return state;
       return {
         cards: { ...state.cards, [id]: { ...card, position } },
+      };
+    });
+  },
+
+  resizeCard: (id, size) => {
+    set((state) => {
+      const card = state.cards[id];
+      if (!card) return state;
+      return {
+        cards: {
+          ...state.cards,
+          [id]: {
+            ...card,
+            size: {
+              width: Math.max(80, size.width),
+              height: Math.max(30, size.height),
+            },
+          },
+        },
       };
     });
   },

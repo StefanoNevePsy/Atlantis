@@ -28,9 +28,11 @@ export const CanvasToolbar: React.FC = () => {
     firebaseConfigJson,
     syncUsername,
     syncEnabled,
+    imgurClientId,
     setFirebaseConfig,
     setSyncUsername,
     setSyncEnabled,
+    setImgurClientId,
     getFirebaseConfig,
   } = useSyncStore();
   const [showSettings, setShowSettings] = useState(false);
@@ -383,6 +385,40 @@ export const CanvasToolbar: React.FC = () => {
                 {!getFirebaseConfig() && firebaseConfigJson && (
                   <span style={{ fontSize: '10px', color: currentTheme.colors.danger }}>Invalid JSON</span>
                 )}
+              </div>
+            </div>
+
+            {/* Imgur settings */}
+            <div style={{ borderTop: `1px solid ${currentTheme.colors.border}30`, marginTop: 8, paddingTop: 8 }}>
+              <label
+                style={{
+                  fontSize: currentTheme.typography.fontSize.xs,
+                  color: currentTheme.colors.textMuted,
+                  display: 'block',
+                  marginBottom: 4,
+                }}
+              >
+                Imgur Image Hosting
+              </label>
+              <input
+                placeholder="Imgur Client ID"
+                value={imgurClientId}
+                onChange={(e) => setImgurClientId(e.target.value)}
+                style={{
+                  width: '100%',
+                  border: `1px solid ${currentTheme.colors.border}40`,
+                  borderRadius: currentTheme.decorations.borderRadius,
+                  background: currentTheme.colors.surface,
+                  color: currentTheme.colors.text,
+                  fontSize: currentTheme.typography.fontSize.xs,
+                  fontFamily: currentTheme.typography.fontFamilyMono,
+                  padding: '4px 8px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+              <div style={{ fontSize: '10px', color: currentTheme.colors.textMuted, marginTop: 2 }}>
+                Pasted/dropped images auto-upload to Imgur
               </div>
             </div>
           </div>

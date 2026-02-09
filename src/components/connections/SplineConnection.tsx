@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useCanvasStore } from '../../store/canvasStore';
 import { useThemeStore } from '../../store/themeStore';
-import { computeSplineControlPoints, getRectEdgePoint } from '../../utils/geometry';
+import { computeEdgeSplineControlPoints, getRectEdgePoint } from '../../utils/geometry';
 import type { ConnectionData, CardData, LineStyle } from '../../types';
 
 interface Props {
@@ -34,7 +34,7 @@ export const SplineConnection: React.FC<Props> = ({
   const { updateConnection, removeConnection, selectConnection } = useCanvasStore();
   const { currentTheme } = useThemeStore();
 
-  // Get center points for direction calculation
+  // Get center points
   const srcCenter = {
     x: source.position.x + source.size.width / 2,
     y: source.position.y + source.size.height / 2,
@@ -48,12 +48,16 @@ export const SplineConnection: React.FC<Props> = ({
   const srcEdge = getRectEdgePoint(source, tgtCenter);
   const tgtEdge = getRectEdgePoint(target, srcCenter);
 
+  // Apply SVG offset
   const sx = srcEdge.x + offsetX;
   const sy = srcEdge.y + offsetY;
   const tx = tgtEdge.x + offsetX;
   const ty = tgtEdge.y + offsetY;
 
-  const { cp1, cp2 } = computeSplineControlPoints(source, target);
+  // Control points extend outward from each face normal
+  const { cp1, cp2 } = computeEdgeSplineControlPoints(
+    srcEdge, srcCenter, tgtEdge, tgtCenter
+  );
   const cp1x = cp1.x + offsetX;
   const cp1y = cp1.y + offsetY;
   const cp2x = cp2.x + offsetX;
@@ -66,7 +70,7 @@ export const SplineConnection: React.FC<Props> = ({
   const lineColor = connection.color || currentTheme.colors.connectionLine;
   const dashArray = getStrokeDasharray(connection.lineStyle);
 
-  // Arrow head
+  // Arrow head angle from control point to endpoint
   const angle = Math.atan2(ty - cp2y, tx - cp2x);
   const arrowSize = 10;
 

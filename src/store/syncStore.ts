@@ -9,12 +9,15 @@ interface SyncState {
   // Sync status
   syncEnabled: boolean;
   lastSyncAt: number | null;
+  // Imgur API client ID for image hosting
+  imgurClientId: string;
 
   // Actions
   setFirebaseConfig: (json: string) => void;
   setSyncUsername: (username: string) => void;
   setSyncEnabled: (enabled: boolean) => void;
   setLastSyncAt: (timestamp: number) => void;
+  setImgurClientId: (clientId: string) => void;
   clearConfig: () => void;
   getFirebaseConfig: () => Record<string, string> | null;
 }
@@ -26,10 +29,12 @@ export const useSyncStore = create<SyncState>()(
       syncUsername: '',
       syncEnabled: false,
       lastSyncAt: null,
+      imgurClientId: '',
 
       setFirebaseConfig: (json) => set({ firebaseConfigJson: json }),
       setSyncUsername: (username) => set({ syncUsername: username }),
       setSyncEnabled: (enabled) => set({ syncEnabled: enabled }),
+      setImgurClientId: (clientId) => set({ imgurClientId: clientId }),
       setLastSyncAt: (timestamp) => set({ lastSyncAt: timestamp }),
 
       clearConfig: () =>
