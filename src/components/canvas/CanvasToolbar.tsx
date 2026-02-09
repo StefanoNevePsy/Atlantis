@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useCanvasStore } from '../../store/canvasStore';
 import { useThemeStore } from '../../store/themeStore';
+import { screenToCanvas } from '../../utils/geometry';
 import type { ToolMode, StructureType } from '../../types';
 
 export const CanvasToolbar: React.FC = () => {
@@ -18,6 +19,7 @@ export const CanvasToolbar: React.FC = () => {
     updateStructureType,
     selectedCardIds,
     groupSelectedCards,
+    addCard,
   } = useCanvasStore();
 
   const { currentTheme, setTheme, getAllThemes } = useThemeStore();
@@ -120,6 +122,23 @@ export const CanvasToolbar: React.FC = () => {
           {tool.icon}
         </button>
       ))}
+
+      {/* Add card button (useful for touch) */}
+      <button
+        onClick={() => {
+          const center = screenToCanvas(
+            window.innerWidth / 2,
+            window.innerHeight / 2,
+            viewport.offset,
+            viewport.zoom
+          );
+          addCard(center);
+        }}
+        style={buttonBase}
+        title="Add card at center (or double-click canvas, or long-press on touch)"
+      >
+        +
+      </button>
 
       {/* Group selected button */}
       <button

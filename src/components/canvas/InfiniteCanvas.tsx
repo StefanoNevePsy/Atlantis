@@ -12,9 +12,16 @@ import { StructureOverlay } from '../xmind/StructureOverlay';
 import { CanvasToolbar } from './CanvasToolbar';
 import { screenToCanvas } from '../../utils/geometry';
 
+const handleCanvasContextMenu = (e: React.MouseEvent) => {
+  // Prevent default context menu on canvas background (supports S Pen button)
+  if ((e.target as HTMLElement).dataset.canvas === 'true') {
+    e.preventDefault();
+  }
+};
+
 export const InfiniteCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLDivElement>(null);
-  const { handlePointerDown, handlePointerMove, handlePointerUp } =
+  const { handlePointerDown, handlePointerMove, handlePointerUp, handleDoubleClick } =
     useCanvasInteraction(canvasRef);
   useKeyboardShortcuts();
 
@@ -23,7 +30,6 @@ export const InfiniteCanvas: React.FC = () => {
     groups,
     viewport,
     backgroundPattern,
-    backgroundColor,
     selectedCardIds,
     selectedGroupIds,
     paintTrail,
@@ -119,16 +125,18 @@ export const InfiniteCanvas: React.FC = () => {
         ref={canvasRef}
         data-canvas="true"
         onClick={handleCanvasClick}
+        onDoubleClick={handleDoubleClick}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onContextMenu={handleCanvasContextMenu}
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
         style={{
           position: 'absolute',
           inset: 0,
           cursor: cursorMap[toolMode] || 'default',
-          backgroundColor: backgroundColor,
+          backgroundColor: currentTheme.colors.background,
           touchAction: 'none',
         }}
       >

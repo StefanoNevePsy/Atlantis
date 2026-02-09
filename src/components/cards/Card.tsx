@@ -259,7 +259,7 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
           />
         )}
 
-        {/* Connection handle */}
+        {/* Connection handle - visible on selection or hover, always tappable on touch */}
         <div
           onPointerDown={(e) => {
             e.stopPropagation();
@@ -270,20 +270,21 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
             right: -8,
             top: '50%',
             transform: 'translateY(-50%)',
-            width: 16,
-            height: 16,
+            width: 20,
+            height: 20,
             borderRadius: '50%',
             background: currentTheme.colors.primary,
             border: `2px solid ${currentTheme.colors.cardBg}`,
             cursor: 'crosshair',
-            opacity: 0,
+            opacity: isSelected ? 0.8 : 0,
             transition: 'opacity 0.2s ease',
+            touchAction: 'none',
           }}
           onMouseEnter={(e) => {
             (e.target as HTMLElement).style.opacity = '1';
           }}
           onMouseLeave={(e) => {
-            (e.target as HTMLElement).style.opacity = '0';
+            if (!isSelected) (e.target as HTMLElement).style.opacity = '0';
           }}
         />
       </div>
