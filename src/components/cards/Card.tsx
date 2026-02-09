@@ -122,6 +122,7 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
 
   // Card style based on theme
   const getCardStyle = (): React.CSSProperties => {
+    const customBorderColor = card.metadata.borderColor;
     const base: React.CSSProperties = {
       position: 'absolute',
       left: card.position.x,
@@ -135,20 +136,21 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
       transition: isDragging ? 'none' : 'transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease',
       zIndex: card.zIndex + (isDragging ? 1000 : 0),
       background: card.metadata.color || currentTheme.colors.cardBg,
-      color: currentTheme.colors.text,
-      fontFamily: currentTheme.typography.fontFamily,
+      color: card.metadata.fontColor || currentTheme.colors.text,
+      fontFamily: card.metadata.fontFamily || currentTheme.typography.fontFamily,
       fontSize: currentTheme.typography.fontSize.md,
     };
 
     const { cardStyle } = currentTheme.decorations;
+    const borderCol = isSelected
+      ? currentTheme.colors.selectionStroke
+      : customBorderColor || currentTheme.colors.cardBorder;
 
     switch (cardStyle) {
       case 'sharp':
         return {
           ...base,
-          border: `${currentTheme.decorations.borderWidth} solid ${
-            isSelected ? currentTheme.colors.selectionStroke : currentTheme.colors.cardBorder
-          }`,
+          border: `${currentTheme.decorations.borderWidth} solid ${borderCol}`,
           borderRadius: currentTheme.decorations.borderRadius,
           boxShadow: isSelected
             ? `6px 6px 0px ${currentTheme.colors.selectionStroke}`
@@ -160,9 +162,7 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
       case 'rounded':
         return {
           ...base,
-          border: `${currentTheme.decorations.borderWidth} solid ${
-            isSelected ? currentTheme.colors.selectionStroke : currentTheme.colors.cardBorder
-          }`,
+          border: `${currentTheme.decorations.borderWidth} solid ${borderCol}`,
           borderRadius: currentTheme.decorations.borderRadiusLg,
           boxShadow: isSelected
             ? `0 0 0 2px ${currentTheme.colors.selectionStroke}, ${currentTheme.decorations.shadowStyle}`
@@ -172,9 +172,7 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
       case 'hand-drawn':
         return {
           ...base,
-          border: `${currentTheme.decorations.borderWidth} solid ${
-            isSelected ? currentTheme.colors.selectionStroke : currentTheme.colors.cardBorder
-          }`,
+          border: `${currentTheme.decorations.borderWidth} solid ${borderCol}`,
           borderRadius: '2px 8px 4px 6px',
           boxShadow: currentTheme.decorations.shadowStyle,
           transform: isDragging ? 'rotate(-0.5deg) scale(1.02)' : isSelected ? 'rotate(0.3deg)' : 'none',
@@ -183,7 +181,7 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
       case 'neon':
         return {
           ...base,
-          border: `1px solid ${isSelected ? currentTheme.colors.selectionStroke : currentTheme.colors.cardBorder}`,
+          border: `1px solid ${borderCol}`,
           borderRadius: currentTheme.decorations.borderRadius,
           boxShadow: isSelected
             ? `0 0 20px ${currentTheme.colors.selectionStroke}60, 0 0 40px ${currentTheme.colors.selectionStroke}20, inset 0 0 20px ${currentTheme.colors.selectionStroke}10`

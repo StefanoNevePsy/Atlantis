@@ -42,6 +42,16 @@ function buildLayoutTree(
 }
 
 // ===== Mind Map (Radial) =====
+// Compute the "weight" of each subtree for proportional angle distribution
+function countDescendants(node: LayoutNode): number {
+  if (node.children.length === 0) return 1;
+  let total = 0;
+  for (const child of node.children) {
+    total += countDescendants(child);
+  }
+  return total;
+}
+
 function layoutMindMapRadial(
   node: LayoutNode,
   cx: number,
@@ -55,24 +65,46 @@ function layoutMindMapRadial(
 
   if (node.children.length === 0) return positions;
 
-  const angleStep = (endAngle - startAngle) / node.children.length;
-  node.children.forEach((child, i) => {
-    const angle = startAngle + angleStep * i + angleStep / 2;
-    const childX = cx + Math.cos(angle) * radius;
-    const childY = cy + Math.sin(angle) * radius;
+  // Distribute angles proportionally to subtree weight
+  const totalWeight = node.children.reduce(
+    (sum, child) => sum + countDescendants(child),
+    0
+  );
+
+  const angleRange = endAngle - startAngle;
+  let currentAngle = startAngle;
+
+  node.children.forEach((child) => {
+    const childWeight = countDescendants(child);
+    const childAngleSpan = (childWeight / totalWeight) * angleRange;
+    const angle = currentAngle + childAngleSpan / 2;
+
+    // Adaptive radius based on depth and number of siblings
+    const adaptiveRadius = Math.max(
+      radius,
+      node.children.length * 40 // Ensure min spacing for many siblings
+    );
+
+    const childX = cx + Math.cos(angle) * adaptiveRadius;
+    const childY = cy + Math.sin(angle) * adaptiveRadius;
 
     const childPositions = layoutMindMapRadial(
-      child, childX, childY,
-      angle - angleStep / 2, angle + angleStep / 2,
-      radius * 0.7
+      child,
+      childX,
+      childY,
+      currentAngle,
+      currentAngle + childAngleSpan,
+      adaptiveRadius * 0.65
     );
     childPositions.forEach((pos, id) => positions.set(id, pos));
+
+    currentAngle += childAngleSpan;
   });
 
   return positions;
 }
 
-// ===== Mind Map (Horizontal) =====
+// ===== Mind Map (Horizontal - right-to-left tree) =====
 function measureSubtreeHorizontal(node: LayoutNode): number {
   if (node.children.length === 0) {
     node.subtreeHeight = node.height;
@@ -93,12 +125,20 @@ function layoutMindMapHorizontal(
   y: number
 ): Map<string, Point> {
   const positions = new Map<string, Point>();
-  positions.set(node.id, { x, y: y + node.subtreeHeight / 2 - node.height / 2 });
+
+  // Center the node vertically within its subtree band
+  const nodeY = y + node.subtreeHeight / 2 - node.height / 2;
+  positions.set(node.id, { x, y: nodeY });
 
   if (node.children.length === 0) return positions;
 
-  let childY = y;
+  // Position children stacked vertically, centered within parent's subtree
+  const childrenTotalHeight =
+    node.children.reduce((sum, c) => sum + c.subtreeHeight, 0) +
+    (node.children.length - 1) * V_GAP;
+  let childY = y + (node.subtreeHeight - childrenTotalHeight) / 2;
   const childX = x + node.width + H_GAP;
+
   node.children.forEach((child) => {
     const childPositions = layoutMindMapHorizontal(child, childX, childY);
     childPositions.forEach((pos, id) => positions.set(id, pos));
@@ -129,12 +169,20 @@ function layoutOrgChart(
   y: number
 ): Map<string, Point> {
   const positions = new Map<string, Point>();
-  positions.set(node.id, { x: x + node.subtreeWidth / 2 - node.width / 2, y });
+
+  // Center the node horizontally within its subtree band
+  const nodeX = x + node.subtreeWidth / 2 - node.width / 2;
+  positions.set(node.id, { x: nodeX, y });
 
   if (node.children.length === 0) return positions;
 
-  let childX = x;
+  // Position children side-by-side, centered under parent
+  const childrenTotalWidth =
+    node.children.reduce((sum, c) => sum + c.subtreeWidth, 0) +
+    (node.children.length - 1) * H_GAP;
+  let childX = x + (node.subtreeWidth - childrenTotalWidth) / 2;
   const childY = y + node.height + V_GAP * 1.5;
+
   node.children.forEach((child) => {
     const childPositions = layoutOrgChart(child, childX, childY);
     childPositions.forEach((pos, id) => positions.set(id, pos));
@@ -150,11 +198,10 @@ function layoutLogicChart(
   x: number,
   y: number
 ): Map<string, Point> {
-  // Same as horizontal mind map but with straight connectors
   return layoutMindMapHorizontal(node, x, y);
 }
 
-// ===== Fishbone =====
+// ===== Fishbone (Ishikawa diagram) =====
 function layoutFishbone(
   node: LayoutNode,
   x: number,
@@ -165,19 +212,34 @@ function layoutFishbone(
 
   if (node.children.length === 0) return positions;
 
-  const spineLength = node.children.length * 200;
+  const ribSpacing = Math.max(180, node.width + 60);
+  const ribAngle = Math.PI / 4; // 45 degrees
+  const ribLength = 130;
+  const subRibSpacing = 50;
+
   node.children.forEach((child, i) => {
-    const cx = x + (i + 1) * (spineLength / (node.children.length + 1));
+    // Alternate top/bottom
     const direction = i % 2 === 0 ? -1 : 1;
-    const cy = y + direction * 120;
+    const spineX = x + node.width + (i + 1) * ribSpacing;
 
-    positions.set(child.id, { x: cx, y: cy });
+    // Position main rib nodes along the diagonal
+    const cx = spineX - Math.cos(ribAngle) * ribLength * 0.5;
+    const cy = y + direction * Math.sin(ribAngle) * ribLength;
+    positions.set(child.id, { x: cx - child.width / 2, y: cy - child.height / 2 });
 
-    // Layout grandchildren along the rib
+    // Sub-ribs (children of children) extend further along the rib
     child.children.forEach((grandchild, j) => {
-      const gx = cx + (j + 1) * 60 * direction * -0.3;
-      const gy = cy + direction * (j + 1) * 60;
-      positions.set(grandchild.id, { x: gx, y: gy });
+      const offsetAlongRib = (j + 1) * subRibSpacing;
+      const gx = cx - Math.cos(ribAngle) * offsetAlongRib;
+      const gy = cy + direction * Math.sin(ribAngle) * offsetAlongRib * 0.4;
+      positions.set(grandchild.id, { x: gx - grandchild.width / 2, y: gy - grandchild.height / 2 });
+
+      // Third level: horizontal branches off sub-ribs
+      grandchild.children.forEach((ggChild, k) => {
+        const ggx = gx + (k % 2 === 0 ? -1 : 1) * (ggChild.width + 20);
+        const ggy = gy + (k + 1) * (ggChild.height + 10) * direction * 0.5;
+        positions.set(ggChild.id, { x: ggx - ggChild.width / 2, y: ggy - ggChild.height / 2 });
+      });
     });
   });
 
@@ -199,7 +261,14 @@ export function computeLayout(
   switch (structure.type) {
     case 'mindmap': {
       if (structure.layoutDirection === 'radial') {
-        return layoutMindMapRadial(tree, baseX + tree.width / 2, baseY + tree.height / 2, 0, Math.PI * 2, 250);
+        return layoutMindMapRadial(
+          tree,
+          baseX + tree.width / 2,
+          baseY + tree.height / 2,
+          0,
+          Math.PI * 2,
+          200
+        );
       }
       measureSubtreeHorizontal(tree);
       return layoutMindMapHorizontal(tree, baseX, baseY);
@@ -228,7 +297,10 @@ export function computeBoundaryRect(
   cards: Record<string, CardData>
 ): { x: number; y: number; width: number; height: number } | null {
   const padding = 20;
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
 
   for (const id of nodeIds) {
     const card = cards[id];

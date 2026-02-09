@@ -53,6 +53,7 @@ interface CanvasState {
   // Actions - Selection
   selectCard: (id: string, multi?: boolean) => void;
   selectGroup: (id: string, multi?: boolean) => void;
+  selectConnection: (id: string, multi?: boolean) => void;
   deselectAll: () => void;
   selectCards: (ids: string[]) => void;
   addToPaintTrail: (point: Point) => void;
@@ -288,7 +289,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         else newSet.add(id);
         return { selectedGroupIds: newSet };
       }
-      return { selectedGroupIds: new Set([id]), selectedCardIds: new Set(), activeCardId: null };
+      return { selectedGroupIds: new Set([id]), selectedCardIds: new Set(), selectedConnectionIds: new Set(), activeCardId: null };
+    });
+  },
+
+  selectConnection: (id, multi = false) => {
+    set((state) => {
+      if (multi) {
+        const newSet = new Set(state.selectedConnectionIds);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        return { selectedConnectionIds: newSet };
+      }
+      return { selectedConnectionIds: new Set([id]), selectedCardIds: new Set(), selectedGroupIds: new Set(), activeCardId: null };
     });
   },
 

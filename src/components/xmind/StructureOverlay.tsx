@@ -7,28 +7,37 @@ export const StructureOverlay: React.FC = () => {
   const { structures, cards, moveCard } = useCanvasStore();
   const { currentTheme } = useThemeStore();
 
+  // Build a stable dependency key from structures and their cards
+  const layoutKey = Object.values(structures)
+    .map((s) => {
+      const root = cards[s.rootId];
+      const rootPos = root ? `${Math.round(root.position.x)},${Math.round(root.position.y)}` : '0,0';
+      const nodeStates = s.nodeIds
+        .map((nid) => {
+          const c = cards[nid];
+          return c ? `${nid}:${c.collapsed}:${c.childrenIds.length}:${c.size.width}x${c.size.height}` : nid;
+        })
+        .join('|');
+      return `${s.id}:${s.type}:${s.layoutDirection}:${rootPos}:${nodeStates}`;
+    })
+    .join(';;');
+
   // Apply auto-layout when structures change
   useEffect(() => {
     Object.values(structures).forEach((structure) => {
       const positions = computeLayout(structure, cards);
       positions.forEach((pos, nodeId) => {
         const card = cards[nodeId];
-        if (card && (Math.abs(card.position.x - pos.x) > 1 || Math.abs(card.position.y - pos.y) > 1)) {
-          // Only move if the card is part of the structure (not being dragged out)
-          if (card.structureId === structure.id) {
-            moveCard(nodeId, pos);
-          }
+        if (!card || card.structureId !== structure.id) return;
+        // Don't move root card (user drags it to position the whole structure)
+        if (nodeId === structure.rootId) return;
+        if (Math.abs(card.position.x - pos.x) > 1 || Math.abs(card.position.y - pos.y) > 1) {
+          moveCard(nodeId, pos);
         }
       });
     });
-  }, [
-    // Recompute when structure type/direction changes, or when nodes are added/removed
-    ...Object.values(structures).map((s) => `${s.type}-${s.layoutDirection}-${s.nodeIds.length}`),
-    // Also recompute when collapse state changes
-    ...Object.values(cards)
-      .filter((c) => c.structureId)
-      .map((c) => `${c.id}-${c.collapsed}-${c.childrenIds.length}`),
-  ]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutKey]);
 
   return (
     <>

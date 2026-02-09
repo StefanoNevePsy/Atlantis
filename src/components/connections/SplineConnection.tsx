@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useCanvasStore } from '../../store/canvasStore';
 import { useThemeStore } from '../../store/themeStore';
-import { computeSplineControlPoints } from '../../utils/geometry';
-import type { ConnectionData, CardData } from '../../types';
+import { computeSplineControlPoints, getRectEdgePoint } from '../../utils/geometry';
+import type { ConnectionData, CardData, LineStyle } from '../../types';
 
 interface Props {
   connection: ConnectionData;
@@ -10,6 +10,15 @@ interface Props {
   target: CardData;
   offsetX: number;
   offsetY: number;
+  isSelected?: boolean;
+}
+
+function getStrokeDasharray(lineStyle?: LineStyle): string | undefined {
+  switch (lineStyle) {
+    case 'dashed': return '8 4';
+    case 'dotted': return '2 4';
+    default: return undefined;
+  }
 }
 
 export const SplineConnection: React.FC<Props> = ({
@@ -18,16 +27,31 @@ export const SplineConnection: React.FC<Props> = ({
   target,
   offsetX,
   offsetY,
+  isSelected = false,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isEditingLabel, setIsEditingLabel] = useState(false);
-  const { updateConnection, removeConnection } = useCanvasStore();
+  const { updateConnection, removeConnection, selectConnection } = useCanvasStore();
   const { currentTheme } = useThemeStore();
 
-  const sx = source.position.x + source.size.width / 2 + offsetX;
-  const sy = source.position.y + source.size.height / 2 + offsetY;
-  const tx = target.position.x + target.size.width / 2 + offsetX;
-  const ty = target.position.y + target.size.height / 2 + offsetY;
+  // Get center points for direction calculation
+  const srcCenter = {
+    x: source.position.x + source.size.width / 2,
+    y: source.position.y + source.size.height / 2,
+  };
+  const tgtCenter = {
+    x: target.position.x + target.size.width / 2,
+    y: target.position.y + target.size.height / 2,
+  };
+
+  // Get edge points (where line exits the rectangle perimeter)
+  const srcEdge = getRectEdgePoint(source, tgtCenter);
+  const tgtEdge = getRectEdgePoint(target, srcCenter);
+
+  const sx = srcEdge.x + offsetX;
+  const sy = srcEdge.y + offsetY;
+  const tx = tgtEdge.x + offsetX;
+  const ty = tgtEdge.y + offsetY;
 
   const { cp1, cp2 } = computeSplineControlPoints(source, target);
   const cp1x = cp1.x + offsetX;
@@ -40,10 +64,17 @@ export const SplineConnection: React.FC<Props> = ({
   const midY = (sy + ty) / 2;
 
   const lineColor = connection.color || currentTheme.colors.connectionLine;
+  const dashArray = getStrokeDasharray(connection.lineStyle);
 
   // Arrow head
   const angle = Math.atan2(ty - cp2y, tx - cp2x);
   const arrowSize = 10;
+
+  const activeColor = isSelected
+    ? currentTheme.colors.primary
+    : isHovered
+    ? currentTheme.colors.selectionStroke
+    : lineColor;
 
   return (
     <g>
@@ -60,6 +91,8 @@ export const SplineConnection: React.FC<Props> = ({
           e.stopPropagation();
           if (e.detail === 2) {
             setIsEditingLabel(true);
+          } else {
+            selectConnection(connection.id, e.shiftKey || e.ctrlKey);
           }
         }}
         onContextMenu={(e) => {
@@ -68,13 +101,25 @@ export const SplineConnection: React.FC<Props> = ({
         }}
       />
 
+      {/* Selection highlight */}
+      {isSelected && (
+        <path
+          d={path}
+          fill="none"
+          stroke={currentTheme.colors.primary + '40'}
+          strokeWidth={8}
+          strokeLinecap="round"
+        />
+      )}
+
       {/* Visible path */}
       <path
         d={path}
         fill="none"
-        stroke={isHovered ? currentTheme.colors.selectionStroke : lineColor}
-        strokeWidth={isHovered ? 3 : 2}
+        stroke={activeColor}
+        strokeWidth={isSelected ? 3 : isHovered ? 3 : 2}
         strokeLinecap="round"
+        strokeDasharray={dashArray}
         style={{ transition: 'stroke 0.2s, stroke-width 0.2s' }}
       />
 
@@ -83,7 +128,7 @@ export const SplineConnection: React.FC<Props> = ({
         <path
           d={`M ${tx} ${ty} L ${tx + Math.cos(angle + Math.PI * 0.8) * arrowSize} ${ty + Math.sin(angle + Math.PI * 0.8) * arrowSize} M ${tx} ${ty} L ${tx + Math.cos(angle - Math.PI * 0.8) * arrowSize} ${ty + Math.sin(angle - Math.PI * 0.8) * arrowSize}`}
           fill="none"
-          stroke={isHovered ? currentTheme.colors.selectionStroke : lineColor}
+          stroke={activeColor}
           strokeWidth={2}
           strokeLinecap="round"
         />
@@ -95,7 +140,7 @@ export const SplineConnection: React.FC<Props> = ({
           <path
             d={`M ${sx} ${sy} L ${sx + Math.cos(reverseAngle + Math.PI * 0.8) * arrowSize} ${sy + Math.sin(reverseAngle + Math.PI * 0.8) * arrowSize} M ${sx} ${sy} L ${sx + Math.cos(reverseAngle - Math.PI * 0.8) * arrowSize} ${sy + Math.sin(reverseAngle - Math.PI * 0.8) * arrowSize}`}
             fill="none"
-            stroke={isHovered ? currentTheme.colors.selectionStroke : lineColor}
+            stroke={activeColor}
             strokeWidth={2}
             strokeLinecap="round"
           />
@@ -157,7 +202,7 @@ export const SplineConnection: React.FC<Props> = ({
       )}
 
       {/* Hover hint */}
-      {isHovered && !connection.label && (
+      {isHovered && !connection.label && !isSelected && (
         <foreignObject
           x={midX - 40}
           y={midY - 10}

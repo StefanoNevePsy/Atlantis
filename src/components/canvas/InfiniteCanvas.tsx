@@ -10,6 +10,7 @@ import { PaintTrail } from './PaintTrail';
 import { BackgroundPattern } from './BackgroundPattern';
 import { StructureOverlay } from '../xmind/StructureOverlay';
 import { CanvasToolbar } from './CanvasToolbar';
+import { InspectorPanel } from '../inspector/InspectorPanel';
 import { screenToCanvas } from '../../utils/geometry';
 
 const handleCanvasContextMenu = (e: React.MouseEvent) => {
@@ -121,6 +122,7 @@ export const InfiniteCanvas: React.FC = () => {
       }}
     >
       <CanvasToolbar />
+      <InspectorPanel />
       <div
         ref={canvasRef}
         data-canvas="true"

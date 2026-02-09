@@ -96,6 +96,34 @@ export function arrowHeadPath(tip: Point, angle: number, size: number = 10): str
   return `M ${tip.x} ${tip.y} L ${tip.x + Math.cos(a1) * size} ${tip.y + Math.sin(a1) * size} M ${tip.x} ${tip.y} L ${tip.x + Math.cos(a2) * size} ${tip.y + Math.sin(a2) * size}`;
 }
 
+// Get the point where a line from rect center to targetPoint exits the rect boundary
+export function getRectEdgePoint(
+  rect: { position: Point; size: { width: number; height: number } },
+  targetPoint: Point
+): Point {
+  const cx = rect.position.x + rect.size.width / 2;
+  const cy = rect.position.y + rect.size.height / 2;
+  const hw = rect.size.width / 2;
+  const hh = rect.size.height / 2;
+
+  const dx = targetPoint.x - cx;
+  const dy = targetPoint.y - cy;
+
+  if (dx === 0 && dy === 0) return { x: cx + hw, y: cy };
+
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+
+  let t: number;
+  if (absDx * hh > absDy * hw) {
+    t = hw / absDx;
+  } else {
+    t = hh / absDy;
+  }
+
+  return { x: cx + dx * t, y: cy + dy * t };
+}
+
 // Distance from point to line segment
 export function distToSegment(p: Point, v: Point, w: Point): number {
   const l2 = (w.x - v.x) ** 2 + (w.y - v.y) ** 2;

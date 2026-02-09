@@ -22,7 +22,7 @@ function groupAsCard(group: { position: { x: number; y: number }; size: { width:
 }
 
 export const ConnectionLayer: React.FC = () => {
-  const { connections, cards, groups } = useCanvasStore();
+  const { connections, cards, groups, selectedConnectionIds } = useCanvasStore();
 
   // Compute bounding box for SVG
   const minX = -10000, minY = -10000;
@@ -78,6 +78,8 @@ export const ConnectionLayer: React.FC = () => {
           }
         }
 
+        const isSelected = selectedConnectionIds.has(conn.id);
+
         // Determine connection style
         const isStructural = conn.styleOverride === 'elbow';
 
@@ -111,6 +113,7 @@ export const ConnectionLayer: React.FC = () => {
             target={target}
             offsetX={-minX}
             offsetY={-minY}
+            isSelected={isSelected}
           />
         );
       })}

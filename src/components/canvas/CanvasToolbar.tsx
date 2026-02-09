@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useCanvasStore } from '../../store/canvasStore';
 import { useThemeStore } from '../../store/themeStore';
+import { useSyncStore } from '../../store/syncStore';
 import { screenToCanvas } from '../../utils/geometry';
 import type { ToolMode, StructureType } from '../../types';
 
@@ -23,6 +24,15 @@ export const CanvasToolbar: React.FC = () => {
   } = useCanvasStore();
 
   const { currentTheme, setTheme, getAllThemes } = useThemeStore();
+  const {
+    firebaseConfigJson,
+    syncUsername,
+    syncEnabled,
+    setFirebaseConfig,
+    setSyncUsername,
+    setSyncEnabled,
+    getFirebaseConfig,
+  } = useSyncStore();
   const [showSettings, setShowSettings] = useState(false);
   const [showStructureMenu, setShowStructureMenu] = useState(false);
 
@@ -266,7 +276,7 @@ export const CanvasToolbar: React.FC = () => {
               >
                 Theme
               </label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 200, overflowY: 'auto' }}>
                 {getAllThemes().map((theme) => (
                   <button
                     key={theme.id}
@@ -295,6 +305,84 @@ export const CanvasToolbar: React.FC = () => {
                     {theme.name}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Sync settings */}
+            <div style={{ borderTop: `1px solid ${currentTheme.colors.border}30`, marginTop: 8, paddingTop: 8 }}>
+              <label
+                style={{
+                  fontSize: currentTheme.typography.fontSize.xs,
+                  color: currentTheme.colors.textMuted,
+                  display: 'block',
+                  marginBottom: 4,
+                }}
+              >
+                Cloud Sync
+              </label>
+              <input
+                placeholder="Username"
+                value={syncUsername}
+                onChange={(e) => setSyncUsername(e.target.value)}
+                style={{
+                  width: '100%',
+                  border: `1px solid ${currentTheme.colors.border}40`,
+                  borderRadius: currentTheme.decorations.borderRadius,
+                  background: currentTheme.colors.surface,
+                  color: currentTheme.colors.text,
+                  fontSize: currentTheme.typography.fontSize.xs,
+                  fontFamily: currentTheme.typography.fontFamilyMono,
+                  padding: '4px 8px',
+                  outline: 'none',
+                  marginBottom: 4,
+                  boxSizing: 'border-box',
+                }}
+              />
+              <textarea
+                placeholder="Firebase config JSON..."
+                value={firebaseConfigJson}
+                onChange={(e) => setFirebaseConfig(e.target.value)}
+                rows={3}
+                style={{
+                  width: '100%',
+                  border: `1px solid ${currentTheme.colors.border}40`,
+                  borderRadius: currentTheme.decorations.borderRadius,
+                  background: currentTheme.colors.surface,
+                  color: currentTheme.colors.text,
+                  fontSize: currentTheme.typography.fontSize.xs,
+                  fontFamily: currentTheme.typography.fontFamilyMono,
+                  padding: '4px 8px',
+                  outline: 'none',
+                  resize: 'vertical',
+                  marginBottom: 4,
+                  boxSizing: 'border-box',
+                }}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  onClick={() => {
+                    const config = getFirebaseConfig();
+                    if (config && syncUsername) {
+                      setSyncEnabled(!syncEnabled);
+                    }
+                  }}
+                  style={{
+                    ...buttonBase,
+                    fontSize: currentTheme.typography.fontSize.xs,
+                    boxShadow: 'none',
+                    flex: 1,
+                    opacity: (getFirebaseConfig() && syncUsername) ? 1 : 0.4,
+                    background: syncEnabled ? currentTheme.colors.success + '20' : currentTheme.colors.surface,
+                    border: syncEnabled
+                      ? `1px solid ${currentTheme.colors.success}`
+                      : `1px solid ${currentTheme.colors.border}40`,
+                  }}
+                >
+                  {syncEnabled ? 'Sync ON' : 'Enable Sync'}
+                </button>
+                {!getFirebaseConfig() && firebaseConfigJson && (
+                  <span style={{ fontSize: '10px', color: currentTheme.colors.danger }}>Invalid JSON</span>
+                )}
               </div>
             </div>
           </div>

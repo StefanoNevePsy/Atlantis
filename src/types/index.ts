@@ -4,6 +4,7 @@
 
 export type ContentType = 'text' | 'image' | 'url' | 'audio' | 'video';
 export type ConnectionDirection = 'none' | 'forward' | 'backward' | 'bidirectional';
+export type LineStyle = 'solid' | 'dashed' | 'dotted';
 export type StructureType = 'mindmap' | 'logic-chart' | 'org-chart' | 'fishbone';
 export type LayoutDirection = 'radial' | 'horizontal' | 'vertical' | 'left-to-right' | 'top-down';
 
@@ -22,6 +23,9 @@ export interface CardMetadata {
   updatedAt: number;
   tags: string[];
   color?: string;
+  borderColor?: string;
+  fontFamily?: string;
+  fontColor?: string;
 }
 
 export interface CardData {
@@ -56,6 +60,7 @@ export interface ConnectionData {
   // Rendering style determined by context
   styleOverride?: 'spline' | 'elbow' | 'straight';
   color?: string;
+  lineStyle?: LineStyle;
 }
 
 export interface GroupData {
