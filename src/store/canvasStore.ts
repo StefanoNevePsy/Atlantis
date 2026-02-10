@@ -15,6 +15,7 @@ import type {
   ToolMode,
   BoundaryData,
   SummaryData,
+  DrawStroke,
 } from '../types';
 
 interface CanvasState {
@@ -26,6 +27,7 @@ interface CanvasState {
   viewport: CanvasViewport;
   backgroundPattern: 'dots' | 'grid' | 'noise' | 'none';
   backgroundColor: string;
+  drawStrokes: DrawStroke[];
 
   // Interaction state
   selectedCardIds: Set<string>;
@@ -100,6 +102,11 @@ interface CanvasState {
   setToolMode: (mode: ToolMode) => void;
   setDragging: (isDragging: boolean) => void;
 
+  // Actions - Drawing
+  addDrawStroke: (stroke: DrawStroke) => void;
+  removeDrawStroke: (id: string) => void;
+  clearDrawStrokes: () => void;
+
   // Actions - Canvas
   setCanvasName: (name: string) => void;
   setBackgroundPattern: (pattern: 'dots' | 'grid' | 'noise' | 'none') => void;
@@ -129,6 +136,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   viewport: { offset: { x: 0, y: 0 }, zoom: 1 },
   backgroundPattern: 'dots',
   backgroundColor: '#f5f0e8',
+  drawStrokes: [],
   selectedCardIds: new Set(),
   selectedGroupIds: new Set(),
   selectedConnectionIds: new Set(),
@@ -988,6 +996,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // Tool
   setToolMode: (mode) => set({ toolMode: mode }),
   setDragging: (isDragging) => set({ isDragging }),
+
+  // Drawing
+  addDrawStroke: (stroke) => set((state) => ({ drawStrokes: [...state.drawStrokes, stroke] })),
+  removeDrawStroke: (id) => set((state) => ({ drawStrokes: state.drawStrokes.filter((s) => s.id !== id) })),
+  clearDrawStrokes: () => set({ drawStrokes: [] }),
 
   // Canvas meta
   setCanvasName: (name) => set({ canvasName: name }),

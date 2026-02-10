@@ -5,6 +5,7 @@
 export type ContentType = 'text' | 'image' | 'url' | 'audio' | 'video';
 export type ConnectionDirection = 'none' | 'forward' | 'backward' | 'bidirectional';
 export type LineStyle = 'solid' | 'dashed' | 'dotted';
+export type CurveStyle = 'curved' | 'straight';
 export type StructureType = 'mindmap' | 'logic-chart' | 'org-chart' | 'fishbone';
 export type LayoutDirection = 'radial' | 'horizontal' | 'vertical' | 'left-to-right' | 'top-down';
 
@@ -61,6 +62,7 @@ export interface ConnectionData {
   styleOverride?: 'spline' | 'elbow' | 'straight';
   color?: string;
   lineStyle?: LineStyle;
+  curveStyle?: CurveStyle;
 }
 
 export interface GroupData {
@@ -193,4 +195,13 @@ export interface ThemeDefinition {
 }
 
 // Tool modes for canvas interaction
-export type ToolMode = 'select' | 'pan' | 'connect' | 'paint-select';
+export type ToolMode = 'select' | 'pan' | 'connect' | 'paint-select' | 'draw';
+
+// Freehand drawing strokes
+export interface DrawStroke {
+  id: string;
+  points: Point[];
+  color: string;
+  width: number;
+  opacity: number;
+}

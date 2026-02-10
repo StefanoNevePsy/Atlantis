@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useCanvasStore } from '../../store/canvasStore';
 import { useThemeStore } from '../../store/themeStore';
 import { computeEdgeSplineControlPoints, getRectEdgePoint } from '../../utils/geometry';
-import type { ConnectionData, CardData, LineStyle } from '../../types';
+import type { ConnectionData, CardData, LineStyle, CurveStyle } from '../../types';
 
 interface Props {
   connection: ConnectionData;
@@ -15,8 +15,8 @@ interface Props {
 
 function getStrokeDasharray(lineStyle?: LineStyle): string | undefined {
   switch (lineStyle) {
-    case 'dashed': return '8 4';
-    case 'dotted': return '2 4';
+    case 'dashed': return '12 6';
+    case 'dotted': return '3 6';
     default: return undefined;
   }
 }
@@ -44,7 +44,7 @@ export const SplineConnection: React.FC<Props> = ({
     y: target.position.y + target.size.height / 2,
   };
 
-  // Get edge points (where line exits the rectangle perimeter)
+  // Get edge points
   const srcEdge = getRectEdgePoint(source, tgtCenter);
   const tgtEdge = getRectEdgePoint(target, srcCenter);
 
@@ -54,24 +54,38 @@ export const SplineConnection: React.FC<Props> = ({
   const tx = tgtEdge.x + offsetX;
   const ty = tgtEdge.y + offsetY;
 
-  // Control points extend outward from each face normal
-  const { cp1, cp2 } = computeEdgeSplineControlPoints(
-    srcEdge, srcCenter, tgtEdge, tgtCenter
-  );
-  const cp1x = cp1.x + offsetX;
-  const cp1y = cp1.y + offsetY;
-  const cp2x = cp2.x + offsetX;
-  const cp2y = cp2.y + offsetY;
+  // Determine curve style - default to curved
+  const curveStyle: CurveStyle = connection.curveStyle || 'curved';
 
-  const path = `M ${sx} ${sy} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${tx} ${ty}`;
+  let path: string;
+  let cp1x = sx, cp1y = sy, cp2x = tx, cp2y = ty;
+
+  if (curveStyle === 'straight') {
+    path = `M ${sx} ${sy} L ${tx} ${ty}`;
+  } else {
+    const { cp1, cp2 } = computeEdgeSplineControlPoints(
+      srcEdge, srcCenter, tgtEdge, tgtCenter
+    );
+    cp1x = cp1.x + offsetX;
+    cp1y = cp1.y + offsetY;
+    cp2x = cp2.x + offsetX;
+    cp2y = cp2.y + offsetY;
+    path = `M ${sx} ${sy} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${tx} ${ty}`;
+  }
+
   const midX = (sx + tx) / 2;
   const midY = (sy + ty) / 2;
 
   const lineColor = connection.color || currentTheme.colors.connectionLine;
   const dashArray = getStrokeDasharray(connection.lineStyle);
 
-  // Arrow head angle from control point to endpoint
-  const angle = Math.atan2(ty - cp2y, tx - cp2x);
+  // Arrow head angle
+  const angle = curveStyle === 'straight'
+    ? Math.atan2(ty - sy, tx - sx)
+    : Math.atan2(ty - cp2y, tx - cp2x);
+  const reverseAngle = curveStyle === 'straight'
+    ? Math.atan2(sy - ty, sx - tx)
+    : Math.atan2(sy - cp1y, sx - cp1x);
   const arrowSize = 10;
 
   const activeColor = isSelected
@@ -80,9 +94,21 @@ export const SplineConnection: React.FC<Props> = ({
     ? currentTheme.colors.selectionStroke
     : lineColor;
 
+  // Unique animation ID per connection
+  const animId = `flow-${connection.id}`;
+
   return (
     <g>
-      {/* Hit area (wider invisible path for easier interaction) */}
+      {/* CSS animation for flowing dashes */}
+      <defs>
+        <style>{`
+          @keyframes ${animId} {
+            to { stroke-dashoffset: -24; }
+          }
+        `}</style>
+      </defs>
+
+      {/* Hit area */}
       <path
         d={path}
         fill="none"
@@ -93,11 +119,8 @@ export const SplineConnection: React.FC<Props> = ({
         onMouseLeave={() => setIsHovered(false)}
         onClick={(e) => {
           e.stopPropagation();
-          if (e.detail === 2) {
-            setIsEditingLabel(true);
-          } else {
-            selectConnection(connection.id, e.shiftKey || e.ctrlKey);
-          }
+          if (e.detail === 2) setIsEditingLabel(true);
+          else selectConnection(connection.id, e.shiftKey || e.ctrlKey);
         }}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -110,21 +133,24 @@ export const SplineConnection: React.FC<Props> = ({
         <path
           d={path}
           fill="none"
-          stroke={currentTheme.colors.primary + '40'}
-          strokeWidth={8}
+          stroke={currentTheme.colors.primary + '30'}
+          strokeWidth={10}
           strokeLinecap="round"
         />
       )}
 
-      {/* Visible path */}
+      {/* Visible path with flow animation on dashed/dotted */}
       <path
         d={path}
         fill="none"
         stroke={activeColor}
-        strokeWidth={isSelected ? 3 : isHovered ? 3 : 2}
+        strokeWidth={isSelected ? 3 : isHovered ? 2.5 : 2}
         strokeLinecap="round"
         strokeDasharray={dashArray}
-        style={{ transition: 'stroke 0.2s, stroke-width 0.2s' }}
+        style={{
+          transition: 'stroke 0.3s ease, stroke-width 0.2s ease',
+          animation: dashArray ? `${animId} 0.6s linear infinite` : undefined,
+        }}
       />
 
       {/* Arrow heads */}
@@ -135,21 +161,20 @@ export const SplineConnection: React.FC<Props> = ({
           stroke={activeColor}
           strokeWidth={2}
           strokeLinecap="round"
+          style={{ transition: 'stroke 0.3s ease' }}
         />
       )}
 
-      {(connection.direction === 'backward' || connection.direction === 'bidirectional') && (() => {
-        const reverseAngle = Math.atan2(sy - cp1y, sx - cp1x);
-        return (
-          <path
-            d={`M ${sx} ${sy} L ${sx + Math.cos(reverseAngle + Math.PI * 0.8) * arrowSize} ${sy + Math.sin(reverseAngle + Math.PI * 0.8) * arrowSize} M ${sx} ${sy} L ${sx + Math.cos(reverseAngle - Math.PI * 0.8) * arrowSize} ${sy + Math.sin(reverseAngle - Math.PI * 0.8) * arrowSize}`}
-            fill="none"
-            stroke={activeColor}
-            strokeWidth={2}
-            strokeLinecap="round"
-          />
-        );
-      })()}
+      {(connection.direction === 'backward' || connection.direction === 'bidirectional') && (
+        <path
+          d={`M ${sx} ${sy} L ${sx + Math.cos(reverseAngle + Math.PI * 0.8) * arrowSize} ${sy + Math.sin(reverseAngle + Math.PI * 0.8) * arrowSize} M ${sx} ${sy} L ${sx + Math.cos(reverseAngle - Math.PI * 0.8) * arrowSize} ${sy + Math.sin(reverseAngle - Math.PI * 0.8) * arrowSize}`}
+          fill="none"
+          stroke={activeColor}
+          strokeWidth={2}
+          strokeLinecap="round"
+          style={{ transition: 'stroke 0.3s ease' }}
+        />
+      )}
 
       {/* Label */}
       {(connection.label || isEditingLabel) && (
@@ -164,9 +189,7 @@ export const SplineConnection: React.FC<Props> = ({
             <input
               autoFocus
               value={connection.label}
-              onChange={(e) =>
-                updateConnection(connection.id, { label: e.target.value })
-              }
+              onChange={(e) => updateConnection(connection.id, { label: e.target.value })}
               onBlur={() => setIsEditingLabel(false)}
               onKeyDown={(e) => e.key === 'Enter' && setIsEditingLabel(false)}
               style={{
@@ -194,10 +217,7 @@ export const SplineConnection: React.FC<Props> = ({
                 color: currentTheme.colors.textMuted,
                 cursor: 'pointer',
               }}
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsEditingLabel(true);
-              }}
+              onClick={(e) => { e.stopPropagation(); setIsEditingLabel(true); }}
             >
               {connection.label}
             </div>
@@ -207,21 +227,8 @@ export const SplineConnection: React.FC<Props> = ({
 
       {/* Hover hint */}
       {isHovered && !connection.label && !isSelected && (
-        <foreignObject
-          x={midX - 40}
-          y={midY - 10}
-          width={80}
-          height={20}
-          style={{ pointerEvents: 'none' }}
-        >
-          <div
-            style={{
-              textAlign: 'center',
-              fontSize: '10px',
-              color: currentTheme.colors.textMuted,
-              fontFamily: currentTheme.typography.fontFamilyMono,
-            }}
-          >
+        <foreignObject x={midX - 40} y={midY - 10} width={80} height={20} style={{ pointerEvents: 'none' }}>
+          <div style={{ textAlign: 'center', fontSize: '10px', color: currentTheme.colors.textMuted, fontFamily: currentTheme.typography.fontFamilyMono }}>
             dbl-click: label
           </div>
         </foreignObject>
