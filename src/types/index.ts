@@ -37,6 +37,12 @@ export interface CardData {
   contentType: ContentType;
   metadata: CardMetadata;
   zIndex: number;
+  // Mixed content: text + optional media
+  imageUrl?: string;          // Image displayed alongside text
+  embedUrl?: string;          // Embedded URL (YouTube, webpage, etc.)
+  // Card appearance
+  cardColor?: string;         // Background color tint (Kinopio-style)
+  locked?: boolean;           // Prevent editing/moving
   // Group membership
   groupId?: string;           // If part of a group
   // XMind layer properties

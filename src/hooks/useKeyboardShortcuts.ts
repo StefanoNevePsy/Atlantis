@@ -99,6 +99,12 @@ export function useKeyboardShortcuts() {
           setToolMode('paint-select');
           break;
         }
+        case 'd': {
+          if (!e.ctrlKey && !e.metaKey) {
+            setToolMode('draw');
+          }
+          break;
+        }
         case 'g': {
           if (!e.ctrlKey && !e.metaKey) {
             if (selectedCardIds.size >= 2) {

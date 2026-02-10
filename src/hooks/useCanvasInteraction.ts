@@ -31,7 +31,12 @@ export function useCanvasInteraction(canvasRef: React.RefObject<HTMLDivElement |
     addToPaintTrail,
     finishPaintSelection,
     setDragging,
+    addDrawStroke,
   } = useCanvasStore();
+
+  // Drawing state
+  const isDrawing = useRef(false);
+  const drawPoints = useRef<{ x: number; y: number }[]>([]);
 
   const clearLongPress = useCallback(() => {
     if (longPressTimer.current) {
@@ -109,6 +114,23 @@ export function useCanvasInteraction(canvasRef: React.RefObject<HTMLDivElement |
         isPanning.current = true;
         lastPointer.current = { x: e.clientX, y: e.clientY };
         panVelocity.current = { x: 0, y: 0 };
+        setDragging(true);
+        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        return;
+      }
+
+      // Draw mode
+      if (e.button === 0 && toolMode === 'draw') {
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const canvasPoint = screenToCanvas(
+          e.clientX - rect.left,
+          e.clientY - rect.top,
+          viewport.offset,
+          viewport.zoom
+        );
+        isDrawing.current = true;
+        drawPoints.current = [canvasPoint];
         setDragging(true);
         (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
         return;
@@ -225,6 +247,18 @@ export function useCanvasInteraction(canvasRef: React.RefObject<HTMLDivElement |
         return;
       }
 
+      if (isDrawing.current && toolMode === 'draw' && e.buttons === 1) {
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const canvasPoint = screenToCanvas(
+          e.clientX - rect.left,
+          e.clientY - rect.top,
+          viewport.offset,
+          viewport.zoom
+        );
+        drawPoints.current.push(canvasPoint);
+      }
+
       if (toolMode === 'paint-select' && e.buttons === 1) {
         const rect = canvasRef.current?.getBoundingClientRect();
         if (!rect) return;
@@ -268,6 +302,22 @@ export function useCanvasInteraction(canvasRef: React.RefObject<HTMLDivElement |
         };
         cancelAnimationFrame(animationFrame.current);
         animationFrame.current = requestAnimationFrame(applyInertia);
+        return;
+      }
+
+      if (isDrawing.current && toolMode === 'draw') {
+        isDrawing.current = false;
+        if (drawPoints.current.length > 1) {
+          addDrawStroke({
+            id: Math.random().toString(36).slice(2),
+            points: drawPoints.current,
+            color: '#333',
+            width: 2,
+            opacity: 1,
+          });
+        }
+        drawPoints.current = [];
+        setDragging(false);
         return;
       }
 

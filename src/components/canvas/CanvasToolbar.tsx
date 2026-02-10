@@ -43,6 +43,7 @@ export const CanvasToolbar: React.FC = () => {
     { mode: 'pan', label: 'Pan', icon: '✋', shortcut: 'H' },
     { mode: 'connect', label: 'Connect', icon: '⟋', shortcut: 'C' },
     { mode: 'paint-select', label: 'Paint Select', icon: '✦', shortcut: 'P' },
+    { mode: 'draw', label: 'Draw', icon: '✏', shortcut: 'D' },
   ];
 
   const structureTypes: { type: StructureType; label: string; icon: string }[] = [

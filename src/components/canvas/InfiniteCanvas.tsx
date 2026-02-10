@@ -11,9 +11,11 @@ import { PaintTrail } from './PaintTrail';
 import { BackgroundPattern } from './BackgroundPattern';
 import { StructureOverlay } from '../xmind/StructureOverlay';
 import { CanvasToolbar } from './CanvasToolbar';
+import { DrawLayer } from './DrawLayer';
 import { InspectorPanel } from '../inspector/InspectorPanel';
 import { screenToCanvas } from '../../utils/geometry';
 import { uploadToImgur, fileToBase64 } from '../../utils/imgur';
+import { useFirebaseSync } from '../../hooks/useFirebaseSync';
 
 const handleCanvasContextMenu = (e: React.MouseEvent) => {
   // Prevent default context menu on canvas background (supports S Pen button)
@@ -47,6 +49,7 @@ export const InfiniteCanvas: React.FC = () => {
 
   const { currentTheme } = useThemeStore();
   const imgurClientId = useSyncStore((s) => s.imgurClientId);
+  useFirebaseSync();
 
   // Helper: add image card, optionally upload to Imgur
   const addImageCard = useCallback(
@@ -179,6 +182,7 @@ export const InfiniteCanvas: React.FC = () => {
     pan: 'grab',
     connect: 'crosshair',
     'paint-select': 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\'%3E%3Ccircle cx=\'12\' cy=\'12\' r=\'6\' fill=\'none\' stroke=\'%23ff6b6b\' stroke-width=\'2\'/%3E%3C/svg%3E") 12 12, crosshair',
+    draw: 'crosshair',
   };
 
   return (
@@ -235,6 +239,9 @@ export const InfiniteCanvas: React.FC = () => {
               }
             />
           ))}
+
+          {/* Drawing strokes */}
+          <DrawLayer />
 
           {/* Connection lines */}
           <ConnectionLayer />

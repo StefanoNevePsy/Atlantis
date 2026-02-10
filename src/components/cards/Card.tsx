@@ -58,6 +58,9 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
 
       selectCard(card.id, e.shiftKey || e.ctrlKey || e.metaKey);
 
+      // Locked cards can't be dragged
+      if (card.locked) return;
+
       setIsDragging(true);
       setSettling(false);
       dragStart.current = { x: e.clientX, y: e.clientY };
@@ -182,8 +185,8 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsEditing(true);
-  }, []);
+    if (!card.locked) setIsEditing(true);
+  }, [card.locked]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -219,7 +222,7 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
         ? 'box-shadow 0.2s ease'
         : 'transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, filter 0.2s ease',
       zIndex: card.zIndex + (isDragging ? 1000 : isHovered ? 500 : 0),
-      background: card.metadata.color || currentTheme.colors.cardBg,
+      background: card.cardColor || card.metadata.color || currentTheme.colors.cardBg,
       color: card.metadata.fontColor || currentTheme.colors.text,
       fontFamily: card.metadata.fontFamily || currentTheme.typography.fontFamily,
       fontSize: currentTheme.typography.fontSize.md,
@@ -343,6 +346,19 @@ export const Card: React.FC<Props> = ({ card, isSelected, onConnect }) => {
               border: `2px solid ${currentTheme.colors.cardBg}`,
             }}
           />
+        )}
+
+        {card.locked && (
+          <div style={{
+            position: 'absolute',
+            top: 4,
+            right: 6,
+            fontSize: '10px',
+            opacity: 0.5,
+            pointerEvents: 'none',
+          }}>
+            🔒
+          </div>
         )}
 
         <CardContent

@@ -46,9 +46,13 @@ export const CardContextMenu: React.FC<Props> = ({ card, position, onClose }) =>
     };
   }, [onClose]);
 
+  // Kinopio-style palette: warm pastels + clear colors
   const colors = [
-    '#ffffff', '#fff3cd', '#d4edda', '#d1ecf1',
-    '#f8d7da', '#e2d9f3', '#ffecd2', '#d1f2eb',
+    '', // Clear/default
+    '#ffe8d6', '#ffd6a5', '#ffadad', '#fdffb6',
+    '#caffbf', '#9bf6ff', '#a0c4ff', '#bdb2ff',
+    '#ffc6ff', '#d4edda', '#f8d7da', '#d1ecf1',
+    '#fff3cd', '#e2d9f3', '#ffecd2', '#d1f2eb',
   ];
 
   const menuStyle: React.CSSProperties = {
@@ -242,7 +246,7 @@ export const CardContextMenu: React.FC<Props> = ({ card, position, onClose }) =>
         </div>
       )}
 
-      {/* Color */}
+      {/* Card Color */}
       <button
         style={itemStyle}
         onClick={() => setShowColorPicker(!showColorPicker)}
@@ -253,30 +257,51 @@ export const CardContextMenu: React.FC<Props> = ({ card, position, onClose }) =>
           (e.target as HTMLElement).style.background = 'transparent';
         }}
       >
-        Color
+        Card Color {card.cardColor ? '●' : ''}
       </button>
       {showColorPicker && (
         <div style={{ padding: '4px 12px', display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {colors.map((c) => (
             <button
-              key={c}
+              key={c || 'clear'}
               onClick={() => {
-                updateCard(card.id, { metadata: { ...card.metadata, color: c } });
+                updateCard(card.id, { cardColor: c || undefined });
                 setShowColorPicker(false);
               }}
               style={{
-                width: 20,
-                height: 20,
-                background: c,
-                border: `2px solid ${card.metadata.color === c ? currentTheme.colors.primary : currentTheme.colors.border}`,
+                width: 22,
+                height: 22,
+                background: c || currentTheme.colors.cardBg,
+                border: `2px solid ${(card.cardColor || '') === c ? currentTheme.colors.primary : currentTheme.colors.border}40`,
                 borderRadius: '50%',
                 cursor: 'pointer',
                 padding: 0,
+                position: 'relative',
               }}
-            />
+              title={c || 'Default'}
+            >
+              {!c && <span style={{ fontSize: '10px' }}>✕</span>}
+            </button>
           ))}
         </div>
       )}
+
+      {/* Lock */}
+      <button
+        style={itemStyle}
+        onClick={() => {
+          updateCard(card.id, { locked: !card.locked });
+          onClose();
+        }}
+        onMouseEnter={(e) => {
+          (e.target as HTMLElement).style.background = currentTheme.colors.surfaceHover;
+        }}
+        onMouseLeave={(e) => {
+          (e.target as HTMLElement).style.background = 'transparent';
+        }}
+      >
+        {card.locked ? 'Unlock Card' : 'Lock Card'}
+      </button>
 
       <div style={{ height: 1, background: currentTheme.colors.border + '30', margin: '4px 0' }} />
 
